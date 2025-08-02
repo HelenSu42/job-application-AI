@@ -10,9 +10,8 @@ import { ArrowLeft, Target, TrendingUp, AlertCircle } from 'lucide-react';
 import backend from '~backend/client';
 import { useAuth } from '../contexts/AuthContext';
 import JobMatchRadar from '../components/analysis/JobMatchRadar';
-import SkillsGapAnalysis from '../components/analysis/SkillsGapAnalysis';
+import GapAnalysis from '../components/analysis/GapAnalysis';
 import SalaryAnalysis from '../components/analysis/SalaryAnalysis';
-import RecommendationsList from '../components/analysis/RecommendationsList';
 
 export default function JobAnalysisPage() {
   const { user } = useAuth();
@@ -129,80 +128,88 @@ export default function JobAnalysisPage() {
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <Card className="border-0 shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold">Job Description</CardTitle>
-              <CardDescription>
-                Paste the complete job description you want to analyze
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="jobDescription">Job Description</Label>
-                <Textarea
-                  id="jobDescription"
-                  placeholder="Paste the job description here..."
-                  value={jobDescription}
-                  onChange={(e) => setJobDescription(e.target.value)}
-                  className="min-h-[200px] resize-none"
-                />
-              </div>
-              <Button 
-                onClick={handleAnalyze}
-                disabled={analyzeJobMutation.isPending || !jobDescription.trim()}
-                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-              >
-                {analyzeJobMutation.isPending ? 'Analyzing...' : 'Analyze Job Match'}
-              </Button>
-            </CardContent>
-          </Card>
-
-          {analysisResult && (
-            <Card className="border-0 shadow-lg">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          {/* Job Description Input - Fixed width */}
+          <div className="lg:col-span-1">
+            <Card className="border-0 shadow-lg h-fit">
               <CardHeader>
-                <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-green-600" />
-                  Overall Match
-                </CardTitle>
+                <CardTitle className="text-lg font-semibold">Job Description</CardTitle>
+                <CardDescription>
+                  Paste the complete job description you want to analyze
+                </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="text-center">
-                  <div className="text-4xl font-bold text-blue-600 mb-2">
-                    {analysisResult.overallMatchPercentage}%
-                  </div>
-                  <p className="text-gray-600 mb-4">Compatibility Score</p>
-                  <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
-                    analysisResult.overallMatchPercentage >= 80 ? 'bg-green-100 text-green-800' :
-                    analysisResult.overallMatchPercentage >= 60 ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-red-100 text-red-800'
-                  }`}>
-                    <AlertCircle className="w-4 h-4" />
-                    {analysisResult.overallMatchPercentage >= 80 ? 'Excellent Match' :
-                     analysisResult.overallMatchPercentage >= 60 ? 'Good Match' :
-                     'Needs Improvement'}
-                  </div>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="jobDescription">Job Description</Label>
+                  <Textarea
+                    id="jobDescription"
+                    placeholder="Paste the job description here..."
+                    value={jobDescription}
+                    onChange={(e) => setJobDescription(e.target.value)}
+                    className="min-h-[300px] max-h-[400px] resize-none"
+                  />
                 </div>
+                <Button 
+                  onClick={handleAnalyze}
+                  disabled={analyzeJobMutation.isPending || !jobDescription.trim()}
+                  className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                >
+                  {analyzeJobMutation.isPending ? 'Analyzing...' : 'Analyze Job Match'}
+                </Button>
               </CardContent>
             </Card>
-          )}
-        </div>
-
-        {analysisResult && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <JobMatchRadar matchingScore={analysisResult.matchingScore} />
-              {analysisResult.salaryAnalysis && (
-                <SalaryAnalysis salaryAnalysis={analysisResult.salaryAnalysis} />
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <SkillsGapAnalysis skillsGap={analysisResult.skillsGap} />
-              <RecommendationsList recommendations={analysisResult.recommendations} />
-            </div>
           </div>
-        )}
+
+          {/* Analysis Results - Fixed width */}
+          <div className="lg:col-span-2 space-y-6">
+            {analysisResult && (
+              <>
+                {/* Overall Match Score */}
+                <Card className="border-0 shadow-lg">
+                  <CardHeader>
+                    <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                      <TrendingUp className="w-5 h-5 text-green-600" />
+                      Overall Match
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-center">
+                      <div className="text-4xl font-bold text-blue-600 mb-2">
+                        {analysisResult.overallMatchPercentage}%
+                      </div>
+                      <p className="text-gray-600 mb-4">Compatibility Score</p>
+                      <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
+                        analysisResult.overallMatchPercentage >= 80 ? 'bg-green-100 text-green-800' :
+                        analysisResult.overallMatchPercentage >= 60 ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        <AlertCircle className="w-4 h-4" />
+                        {analysisResult.overallMatchPercentage >= 80 ? 'Excellent Match' :
+                         analysisResult.overallMatchPercentage >= 60 ? 'Good Match' :
+                         'Needs Improvement'}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Job Match Radar Chart */}
+                <JobMatchRadar matchingScore={analysisResult.matchingScore} />
+
+                {/* Gap Analysis */}
+                <GapAnalysis 
+                  skillsGap={analysisResult.skillsGap}
+                  userProfile={userProfile}
+                  jobDescription={jobDescription}
+                />
+
+                {/* Salary Analysis */}
+                {analysisResult.salaryAnalysis && (
+                  <SalaryAnalysis salaryAnalysis={analysisResult.salaryAnalysis} />
+                )}
+              </>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
