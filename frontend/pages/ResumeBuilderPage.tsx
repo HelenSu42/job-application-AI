@@ -38,24 +38,31 @@ export default function ResumeBuilderPage() {
     mutationFn: async () => {
       if (!userProfile) throw new Error('User profile not loaded');
       
-      return backend.resume.generate({
+      console.log('Generating resume with profile:', userProfile);
+      
+      const requestData = {
         userProfile: {
           name: userProfile.name,
           email: userProfile.email,
-          phone: userProfile.phone,
-          location: userProfile.location,
-          education: userProfile.education,
-          skills: userProfile.skills,
-          languages: userProfile.languages,
-          projects: userProfile.projects,
-          achievements: userProfile.achievements
+          phone: userProfile.phone || '',
+          location: userProfile.location || '',
+          education: userProfile.education || [],
+          skills: userProfile.skills || [],
+          languages: userProfile.languages || [],
+          projects: userProfile.projects || [],
+          achievements: userProfile.achievements || []
         },
         jobDescription: jobDescription || undefined,
         template: selectedTemplate,
         selectedSections
-      });
+      };
+      
+      console.log('Request data:', requestData);
+      
+      return backend.resume.generate(requestData);
     },
     onSuccess: (resume) => {
+      console.log('Resume generated successfully:', resume);
       setGeneratedResume(resume);
       toast({
         title: "Resume generated!",
@@ -73,14 +80,43 @@ export default function ResumeBuilderPage() {
   });
 
   const handleGenerateResume = () => {
+    if (!userProfile) {
+      toast({
+        title: "Profile not loaded",
+        description: "Please wait for your profile to load before generating a resume.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    console.log('Starting resume generation...');
     generateResumeMutation.mutate();
   };
 
   const handleDownload = (format: 'pdf' | 'word') => {
-    // Mock download functionality
+    if (!generatedResume) {
+      toast({
+        title: "No resume to download",
+        description: "Please generate a resume first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Create a blob with the resume content
+    const blob = new Blob([generatedResume.content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${userProfile?.name || 'Resume'}_${format}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
     toast({
       title: `Downloading ${format.toUpperCase()}`,
-      description: "Your resume download will begin shortly.",
+      description: "Your resume download has started.",
     });
   };
 
@@ -91,6 +127,21 @@ export default function ResumeBuilderPage() {
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading your profile...</p>
         </div>
+      </div>
+    );
+  }
+
+  if (!userProfile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardContent className="text-center p-6">
+            <p className="text-red-600 mb-4">Failed to load profile</p>
+            <Link to="/profile">
+              <Button>Go to Profile</Button>
+            </Link>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -165,7 +216,7 @@ export default function ResumeBuilderPage() {
 
                 <Button 
                   onClick={handleGenerateResume}
-                  disabled={generateResumeMutation.isPending}
+                  disabled={generateResumeMutation.isPending || !userProfile}
                   className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
                 >
                   {generateResumeMutation.isPending ? 'Generating...' : 'Generate Resume'}
