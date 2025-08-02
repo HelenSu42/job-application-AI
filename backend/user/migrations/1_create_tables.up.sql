@@ -2,6 +2,7 @@ CREATE TABLE users (
   id BIGSERIAL PRIMARY KEY,
   email VARCHAR(255) UNIQUE NOT NULL,
   name VARCHAR(255) NOT NULL,
+  password_hash VARCHAR(255),
   phone VARCHAR(50),
   location VARCHAR(255),
   current_salary INTEGER,

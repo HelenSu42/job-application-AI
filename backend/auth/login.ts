@@ -47,7 +47,7 @@ export const login = api<LoginRequest, LoginResponse>(
     const sessionToken = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
-    // Store session
+    // Store session in auth database
     await authDB.exec`
       INSERT INTO user_sessions (user_id, session_token, expires_at)
       VALUES (${user.id}, ${sessionToken}, ${expiresAt})

@@ -35,6 +35,7 @@ export const verifySession = api<VerifySessionRequest, VerifySessionResponse>(
       throw APIError.unauthenticated("Session expired");
     }
 
+    // Get user from user database
     const user = await userDB.queryRow`
       SELECT id, name, email FROM users WHERE id = ${session.user_id}
     `;
