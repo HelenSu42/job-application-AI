@@ -1,6 +1,6 @@
 import { api } from "encore.dev/api";
 import { userDB } from "./db";
-import bcrypt from "bcrypt";
+import crypto from "crypto";
 
 export interface CreateUserRequest {
   email: string;
@@ -22,6 +22,11 @@ export interface User {
   updatedAt: Date;
 }
 
+// Simple password hashing function using crypto (for demo purposes)
+function hashPassword(password: string): string {
+  return crypto.createHash('sha256').update(password).digest('hex');
+}
+
 // Creates a new user profile.
 export const create = api<CreateUserRequest, User>(
   { expose: true, method: "POST", path: "/users" },
@@ -35,9 +40,9 @@ export const create = api<CreateUserRequest, User>(
       throw new Error("User with this email already exists");
     }
 
-    // Hash the password
-    const saltRounds = 12;
-    const passwordHash = await bcrypt.hash(req.password, saltRounds);
+    // Hash the password using simple crypto hash (for demo purposes)
+    // In production, use bcrypt or similar
+    const passwordHash = hashPassword(req.password);
     
     const user = await userDB.queryRow<User>`
       INSERT INTO users (email, name, password_hash, phone, location, current_salary)

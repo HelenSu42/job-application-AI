@@ -1,5 +1,5 @@
 import { api } from "encore.dev/api";
-import { userDB } from "../user/db";
+import { authDB } from "./db";
 
 export interface LogoutRequest {
   sessionToken: string;
@@ -13,7 +13,7 @@ export interface LogoutResponse {
 export const logout = api<LogoutRequest, LogoutResponse>(
   { expose: true, method: "POST", path: "/auth/logout" },
   async (req) => {
-    await userDB.exec`
+    await authDB.exec`
       DELETE FROM user_sessions WHERE session_token = ${req.sessionToken}
     `;
     

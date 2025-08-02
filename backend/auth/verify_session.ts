@@ -1,4 +1,5 @@
 import { api, APIError } from "encore.dev/api";
+import { authDB } from "./db";
 import { userDB } from "../user/db";
 
 export interface VerifySessionRequest {
@@ -17,7 +18,7 @@ export interface VerifySessionResponse {
 export const verifySession = api<VerifySessionRequest, VerifySessionResponse>(
   { expose: true, method: "POST", path: "/auth/verify" },
   async (req) => {
-    const session = await userDB.queryRow`
+    const session = await authDB.queryRow`
       SELECT user_id, expires_at FROM user_sessions 
       WHERE session_token = ${req.sessionToken}
     `;
@@ -28,7 +29,7 @@ export const verifySession = api<VerifySessionRequest, VerifySessionResponse>(
 
     if (new Date() > session.expires_at) {
       // Clean up expired session
-      await userDB.exec`
+      await authDB.exec`
         DELETE FROM user_sessions WHERE session_token = ${req.sessionToken}
       `;
       throw APIError.unauthenticated("Session expired");
