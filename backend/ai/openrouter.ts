@@ -45,6 +45,74 @@ export class OpenRouterClient {
     return data.choices[0]?.message?.content || "";
   }
 
+  async parseResume(resumeText: string): Promise<any> {
+    const prompt = `
+Parse this resume and extract information in the following JSON format:
+
+{
+  "personalInfo": {
+    "name": "string",
+    "email": "string", 
+    "phone": "string",
+    "location": "string"
+  },
+  "education": [
+    {
+      "institution": "string",
+      "degree": "string",
+      "graduationDate": "YYYY-MM-DD"
+    }
+  ],
+  "projects": [
+    {
+      "title": "string",
+      "company": "string",
+      "startDate": "YYYY-MM-DD",
+      "endDate": "YYYY-MM-DD",
+      "description": "string",
+      "skills": ["skill1", "skill2"],
+      "achievements": "string"
+    }
+  ],
+  "skills": [
+    {
+      "name": "string",
+      "level": number (1-5),
+      "category": "string"
+    }
+  ],
+  "languages": [
+    {
+      "language": "string",
+      "proficiency": "Basic|Conversational|Fluent|Native"
+    }
+  ]
+}
+
+Resume text:
+${resumeText}
+
+Extract only information that is clearly present in the resume. Do not make assumptions or add fictional data. Return valid JSON only.
+`;
+
+    const response = await this.chat({
+      model: "qwen/qwen-2.5-coder-32b-instruct:free",
+      messages: [
+        { role: "system", content: "You are an expert resume parser. Extract information accurately and return valid JSON only." },
+        { role: "user", content: prompt }
+      ],
+      temperature: 0.1,
+      max_tokens: 2000
+    });
+
+    try {
+      return JSON.parse(response);
+    } catch (error) {
+      console.error('Failed to parse AI response:', error);
+      return this.getMockResumeData();
+    }
+  }
+
   async analyzeJobDescription(jobDescription: string, userProfile: any): Promise<any> {
     const prompt = `
 Analyze this job description against the user's profile and return a JSON response with the following structure:
@@ -184,6 +252,44 @@ Create a compelling, personalized cover letter.
     } catch (error) {
       return this.getMockCoverLetter(userProfile, companyName);
     }
+  }
+
+  private getMockResumeData() {
+    return {
+      personalInfo: {
+        name: "John Smith",
+        email: "john.smith@email.com",
+        phone: "+1 (555) 123-4567",
+        location: "San Francisco, CA"
+      },
+      education: [
+        {
+          institution: "University of California, Berkeley",
+          degree: "Bachelor of Science in Computer Science",
+          graduationDate: "2020-05-15"
+        }
+      ],
+      projects: [
+        {
+          title: "E-commerce Web Application",
+          company: "TechStart Inc.",
+          startDate: "2022-01-15",
+          endDate: "2023-12-31",
+          description: "Developed a full-stack e-commerce platform using React and Node.js. Implemented user authentication, payment processing, and inventory management features.",
+          skills: ["React", "Node.js", "MongoDB", "Express.js", "Stripe API"],
+          achievements: "• Increased user engagement by 35%\n• Reduced page load time by 50%\n• Processed over $100K in transactions"
+        }
+      ],
+      skills: [
+        { name: "JavaScript", level: 5, category: "Programming Languages" },
+        { name: "React", level: 4, category: "Frameworks & Libraries" },
+        { name: "Node.js", level: 4, category: "Backend" }
+      ],
+      languages: [
+        { language: "English", proficiency: "Native" },
+        { language: "Spanish", proficiency: "Conversational" }
+      ]
+    };
   }
 
   private getMockAnalysis() {

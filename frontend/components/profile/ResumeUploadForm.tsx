@@ -4,43 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/components/ui/use-toast';
-import { Upload, FileText, AlertCircle, CheckCircle, Loader2, Save, X } from 'lucide-react';
+import { Upload, FileText, AlertCircle, CheckCircle, Loader2, X } from 'lucide-react';
 import backend from '~backend/client';
 
 interface ResumeUploadFormProps {
   userProfile: any;
-}
-
-interface ExtractedData {
-  personalInfo: {
-    name: string;
-    email: string;
-    phone: string;
-    location: string;
-  };
-  education: Array<{
-    institution: string;
-    degree: string;
-    graduationDate: string;
-  }>;
-  projects: Array<{
-    title: string;
-    company: string;
-    startDate: string;
-    endDate: string;
-    description: string;
-    skills: string[];
-    achievements: string;
-  }>;
-  skills: Array<{
-    name: string;
-    level: number;
-    category: string;
-  }>;
-  languages: Array<{
-    language: string;
-    proficiency: string;
-  }>;
 }
 
 export default function ResumeUploadForm({ userProfile }: ResumeUploadFormProps) {
@@ -48,150 +16,108 @@ export default function ResumeUploadForm({ userProfile }: ResumeUploadFormProps)
   const queryClient = useQueryClient();
   const [isDragging, setIsDragging] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [processingStage, setProcessingStage] = useState<'idle' | 'uploading' | 'parsing' | 'complete' | 'error'>('idle');
+  const [processingStage, setProcessingStage] = useState<'idle' | 'uploading' | 'parsing' | 'updating' | 'complete' | 'error'>('idle');
 
   const parseResumeMutation = useMutation({
     mutationFn: async (file: File) => {
       setProcessingStage('uploading');
       
-      // Simulate file upload
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Read file content
+      const text = await readFileAsText(file);
       
       setProcessingStage('parsing');
       
-      // Simulate AI parsing with more realistic mock data
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Parse resume using backend API
+      const extractedData = await backend.user.parseResume({
+        userId: userProfile.id,
+        resumeText: text
+      });
       
-      // More realistic extracted data based on common resume content
-      const mockData: ExtractedData = {
-        personalInfo: {
-          name: userProfile.name || 'John Smith',
-          email: userProfile.email || 'john.smith@email.com',
-          phone: '+1 (555) 123-4567',
-          location: 'San Francisco, CA'
-        },
-        education: [
-          {
-            institution: 'University of California, Berkeley',
-            degree: 'Bachelor of Science in Computer Science',
-            graduationDate: '2020-05-15'
-          }
-        ],
-        projects: [
-          {
-            title: 'E-commerce Web Application',
-            company: 'TechStart Inc.',
-            startDate: '2022-01-15',
-            endDate: '2023-12-31',
-            description: 'Developed a full-stack e-commerce platform using React and Node.js. Implemented user authentication, payment processing, and inventory management features.',
-            skills: ['React', 'Node.js', 'MongoDB', 'Express.js', 'Stripe API'],
-            achievements: '• Increased user engagement by 35%\n• Reduced page load time by 50%\n• Processed over $100K in transactions'
-          },
-          {
-            title: 'Mobile Task Management App',
-            company: 'Personal Project',
-            startDate: '2021-06-01',
-            endDate: '2021-11-30',
-            description: 'Built a cross-platform mobile application for task management using React Native. Features include offline sync, push notifications, and collaborative workspaces.',
-            skills: ['React Native', 'Firebase', 'Redux', 'TypeScript'],
-            achievements: '• Published on both iOS and Android app stores\n• Achieved 4.5-star rating with 500+ downloads\n• Implemented real-time collaboration features'
-          }
-        ],
-        skills: [
-          { name: 'JavaScript', level: 5, category: 'Programming Languages' },
-          { name: 'React', level: 4, category: 'Frameworks & Libraries' },
-          { name: 'Node.js', level: 4, category: 'Backend' },
-          { name: 'Python', level: 3, category: 'Programming Languages' },
-          { name: 'MongoDB', level: 3, category: 'Databases' },
-          { name: 'Git', level: 4, category: 'Tools & Software' }
-        ],
-        languages: [
-          { language: 'English', proficiency: 'Native' },
-          { language: 'Spanish', proficiency: 'Conversational' }
-        ]
-      };
+      setProcessingStage('updating');
       
-      return mockData;
-    },
-    onSuccess: async (data) => {
-      setProcessingStage('complete');
+      // Update user profile with extracted data
+      const updatePromises = [];
       
-      // Auto-populate the profile with extracted data
-      try {
-        // Update education
-        if (data.education.length > 0) {
-          await backend.user.updateEducation({
+      // Update education if data exists
+      if (extractedData.education && extractedData.education.length > 0) {
+        updatePromises.push(
+          backend.user.updateEducation({
             userId: userProfile.id,
-            education: data.education.map(edu => ({
+            education: extractedData.education.map(edu => ({
               institution: edu.institution,
               degree: edu.degree,
               graduationDate: edu.graduationDate ? new Date(edu.graduationDate) : undefined
             }))
-          });
-        }
+          })
+        );
+      }
 
-        // Update projects
-        if (data.projects.length > 0) {
-          await backend.user.updateProjects({
+      // Update projects if data exists
+      if (extractedData.projects && extractedData.projects.length > 0) {
+        updatePromises.push(
+          backend.user.updateProjects({
             userId: userProfile.id,
-            projects: data.projects.map(project => ({
+            projects: extractedData.projects.map(project => ({
               title: project.title,
               description: project.description,
-              summary: project.description.substring(0, 200) + '...',
-              keywords: project.skills,
+              summary: project.description.length > 200 ? project.description.substring(0, 200) + '...' : project.description,
+              keywords: project.skills || [],
               startDate: project.startDate ? new Date(project.startDate) : undefined,
               endDate: project.endDate ? new Date(project.endDate) : undefined,
               bullets: []
             }))
-          });
-        }
+          })
+        );
+      }
 
-        // Update skills
-        if (data.skills.length > 0) {
-          await backend.user.updateSkills({
+      // Update skills if data exists
+      if (extractedData.skills && extractedData.skills.length > 0) {
+        updatePromises.push(
+          backend.user.updateSkills({
             userId: userProfile.id,
-            skills: data.skills.map(skill => ({
+            skills: extractedData.skills.map(skill => ({
               skillName: skill.name,
               skillLevel: skill.level,
               category: skill.category
             }))
-          });
-        }
+          })
+        );
+      }
 
-        // Update languages
-        if (data.languages.length > 0) {
-          await backend.user.updateLanguages({
+      // Update languages if data exists
+      if (extractedData.languages && extractedData.languages.length > 0) {
+        updatePromises.push(
+          backend.user.updateLanguages({
             userId: userProfile.id,
-            languages: data.languages.map(lang => ({
+            languages: extractedData.languages.map(lang => ({
               language: lang.language,
               proficiency: lang.proficiency
             }))
-          });
-        }
-
-        // Refresh the user profile data
-        queryClient.invalidateQueries({ queryKey: ['user', userProfile.id] });
-
-        toast({
-          title: "Resume parsed and profile updated!",
-          description: "Your profile has been automatically populated with the extracted information. Please review and edit as needed.",
-        });
-
-        // Reset the upload state
-        setTimeout(() => {
-          setUploadedFile(null);
-          setProcessingStage('idle');
-        }, 2000);
-
-      } catch (error) {
-        console.error('Error updating profile:', error);
-        toast({
-          title: "Parsing successful, but update failed",
-          description: "The resume was parsed but we couldn't update your profile. Please try again.",
-          variant: "destructive",
-        });
-        setProcessingStage('error');
+          })
+        );
       }
+
+      // Execute all updates
+      await Promise.all(updatePromises);
+      
+      return extractedData;
+    },
+    onSuccess: (extractedData) => {
+      setProcessingStage('complete');
+      
+      // Refresh the user profile data
+      queryClient.invalidateQueries({ queryKey: ['user', userProfile.id] });
+
+      toast({
+        title: "Resume parsed and profile updated!",
+        description: "Your profile has been automatically populated with the extracted information. Please review the other tabs.",
+      });
+
+      // Reset the upload state after a delay
+      setTimeout(() => {
+        setUploadedFile(null);
+        setProcessingStage('idle');
+      }, 3000);
     },
     onError: (error) => {
       console.error('Resume parsing error:', error);
@@ -203,6 +129,18 @@ export default function ResumeUploadForm({ userProfile }: ResumeUploadFormProps)
       });
     }
   });
+
+  const readFileAsText = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target?.result as string;
+        resolve(text);
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsText(file);
+    });
+  };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -272,7 +210,8 @@ export default function ResumeUploadForm({ userProfile }: ResumeUploadFormProps)
   const getProcessingProgress = () => {
     switch (processingStage) {
       case 'uploading': return 25;
-      case 'parsing': return 75;
+      case 'parsing': return 50;
+      case 'updating': return 75;
       case 'complete': return 100;
       case 'error': return 0;
       default: return 0;
@@ -281,8 +220,9 @@ export default function ResumeUploadForm({ userProfile }: ResumeUploadFormProps)
 
   const getProcessingMessage = () => {
     switch (processingStage) {
-      case 'uploading': return 'Uploading your resume...';
+      case 'uploading': return 'Reading your resume file...';
       case 'parsing': return 'AI is analyzing your resume...';
+      case 'updating': return 'Updating your profile...';
       case 'complete': return 'Resume parsed and profile updated successfully!';
       case 'error': return 'Failed to parse resume';
       default: return '';
@@ -341,7 +281,7 @@ export default function ResumeUploadForm({ userProfile }: ResumeUploadFormProps)
           )}
 
           {/* Processing Status */}
-          {(processingStage === 'uploading' || processingStage === 'parsing') && uploadedFile && (
+          {(processingStage === 'uploading' || processingStage === 'parsing' || processingStage === 'updating') && uploadedFile && (
             <div className="space-y-4">
               <div className="flex items-center gap-4 p-4 bg-blue-50 rounded-lg">
                 <FileText className="w-8 h-8 text-blue-600" />
@@ -370,6 +310,7 @@ export default function ResumeUploadForm({ userProfile }: ResumeUploadFormProps)
                 variant="outline"
                 onClick={handleDiscardData}
                 className="w-full flex items-center gap-2"
+                disabled={processingStage === 'updating'}
               >
                 <X className="w-4 h-4" />
                 Cancel Upload
@@ -400,6 +341,9 @@ export default function ResumeUploadForm({ userProfile }: ResumeUploadFormProps)
                   <li>• Technical skills and proficiency levels</li>
                   <li>• Language skills and proficiency</li>
                 </ul>
+                <p className="text-sm text-blue-600 mt-3 font-medium">
+                  💡 Switch to other tabs to see the updated information!
+                </p>
               </div>
             </div>
           )}
