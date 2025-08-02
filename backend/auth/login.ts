@@ -1,5 +1,6 @@
 import { api, APIError } from "encore.dev/api";
 import { userDB } from "../user/db";
+import bcrypt from "bcrypt";
 import crypto from "crypto";
 
 export interface LoginRequest {
@@ -20,13 +21,18 @@ export interface LoginResponse {
 export const login = api<LoginRequest, LoginResponse>(
   { expose: true, method: "POST", path: "/auth/login" },
   async (req) => {
-    // For now, we'll use a simple email-only authentication
-    // In a real app, you'd hash and verify passwords
+    // Find user by email
     const user = await userDB.queryRow`
-      SELECT id, name, email FROM users WHERE email = ${req.email}
+      SELECT id, name, email, password_hash FROM users WHERE email = ${req.email}
     `;
     
     if (!user) {
+      throw APIError.unauthenticated("Invalid email or password");
+    }
+
+    // Verify password
+    const isValidPassword = await bcrypt.compare(req.password, user.password_hash);
+    if (!isValidPassword) {
       throw APIError.unauthenticated("Invalid email or password");
     }
 

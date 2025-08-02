@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
-import { ArrowLeft, Mail, Lock } from 'lucide-react';
+import { ArrowLeft, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function LoginPage() {
@@ -16,6 +16,7 @@ export default function LoginPage() {
     email: '',
     password: ''
   });
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -37,11 +38,12 @@ export default function LoginPage() {
         description: "You have been successfully logged in.",
       });
       navigate('/profile');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login error:', error);
+      const errorMessage = error.message || "Invalid email or password. Please try again.";
       toast({
         title: "Login failed",
-        description: "Invalid email or password. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -98,13 +100,28 @@ export default function LoginPage() {
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <Input
                     id="password"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     placeholder="Enter your password"
                     value={formData.password}
                     onChange={(e) => handleInputChange('password', e.target.value)}
-                    className="pl-10"
+                    className="pl-10 pr-10"
                     required
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="text-sm">
+                  <a href="#" className="text-blue-600 hover:text-blue-700">
+                    Forgot your password?
+                  </a>
                 </div>
               </div>
 
@@ -128,8 +145,8 @@ export default function LoginPage() {
 
             <div className="mt-6 p-4 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-800">
-                <strong>Demo Note:</strong> For demonstration purposes, you can use any email address 
-                that exists in the system. Password validation is simplified for this demo.
+                <strong>Secure Login:</strong> Your password is encrypted and secure. 
+                We never store your password in plain text.
               </p>
             </div>
           </CardContent>
