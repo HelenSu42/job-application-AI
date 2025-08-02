@@ -50,7 +50,7 @@ export default function JobAnalysisPage() {
           startDate: project.startDate,
           endDate: project.endDate
         })),
-        currentSalary: userProfile.currentSalary
+        currentSalary: userProfile.currentSalary || undefined
       });
     },
     onSuccess: (result) => {
