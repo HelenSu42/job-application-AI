@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
-import { ArrowLeft, User, Code, Briefcase, Upload, LogOut } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { ArrowLeft, Upload, User, Briefcase, Code, LogOut, CheckCircle, AlertTriangle, Edit, Circle } from 'lucide-react';
 import backend from '~backend/client';
 import { useAuth } from '../contexts/AuthContext';
 import PersonalInfoForm from '../components/profile/PersonalInfoForm';
@@ -15,7 +16,7 @@ import ResumeUploadForm from '../components/profile/ResumeUploadForm';
 
 export default function ProfilePage() {
   const { user, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState('personal');
+  const [activeTab, setActiveTab] = useState('upload');
 
   const { data: userProfile, isLoading, error } = useQuery({
     queryKey: ['user', user?.id],
@@ -54,13 +55,59 @@ export default function ProfilePage() {
   }
 
   const completionPercentage = calculateProfileCompletion(userProfile);
+  const tabStatuses = getTabStatuses(userProfile);
 
   const tabs = [
-    { id: 'personal', label: 'Personal Info', icon: User },
-    { id: 'skills', label: 'Skills & Languages', icon: Code },
-    { id: 'experiences', label: 'Experiences', icon: Briefcase },
-    { id: 'upload', label: 'Resume Upload', icon: Upload }
+    { id: 'upload', label: 'Resume Upload', icon: Upload, status: tabStatuses.upload },
+    { id: 'personal', label: 'Personal Info', icon: User, status: tabStatuses.personal },
+    { id: 'experiences', label: 'Experiences', icon: Briefcase, status: tabStatuses.experiences },
+    { id: 'skills', label: 'Skills & Languages', icon: Code, status: tabStatuses.skills }
   ];
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'complete':
+        return <CheckCircle className="w-4 h-4 text-green-600" />;
+      case 'incomplete':
+        return <AlertTriangle className="w-4 h-4 text-yellow-600" />;
+      case 'in-progress':
+        return <Edit className="w-4 h-4 text-blue-600" />;
+      case 'empty':
+        return <Circle className="w-4 h-4 text-gray-400" />;
+      default:
+        return <Circle className="w-4 h-4 text-gray-400" />;
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'complete':
+        return 'bg-green-100 text-green-800';
+      case 'incomplete':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'in-progress':
+        return 'bg-blue-100 text-blue-800';
+      case 'empty':
+        return 'bg-gray-100 text-gray-600';
+      default:
+        return 'bg-gray-100 text-gray-600';
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'complete':
+        return 'Complete';
+      case 'incomplete':
+        return 'Incomplete';
+      case 'in-progress':
+        return 'In Progress';
+      case 'empty':
+        return 'Empty';
+      default:
+        return 'Empty';
+    }
+  };
 
   return (
     <div className="min-h-screen p-4">
@@ -113,28 +160,37 @@ export default function ProfilePage() {
               <TabsTrigger
                 key={tab.id}
                 value={tab.id}
-                className="flex flex-col items-center gap-2 py-4 px-6 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 data-[state=active]:border-blue-200 rounded-lg"
+                className="flex flex-col items-center gap-2 py-4 px-6 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 data-[state=active]:border-blue-200 rounded-lg relative"
               >
-                <tab.icon className="w-5 h-5" />
+                <div className="flex items-center gap-2">
+                  <tab.icon className="w-5 h-5" />
+                  {getStatusIcon(tab.status)}
+                </div>
                 <span className="text-sm font-medium">{tab.label}</span>
+                <Badge 
+                  variant="outline" 
+                  className={`text-xs ${getStatusColor(tab.status)}`}
+                >
+                  {getStatusText(tab.status)}
+                </Badge>
               </TabsTrigger>
             ))}
           </TabsList>
 
-          <TabsContent value="personal" className="mt-6">
-            <PersonalInfoForm userProfile={userProfile} />
+          <TabsContent value="upload" className="mt-6">
+            <ResumeUploadForm userProfile={userProfile} />
           </TabsContent>
 
-          <TabsContent value="skills" className="mt-6">
-            <SkillsLanguagesForm userProfile={userProfile} />
+          <TabsContent value="personal" className="mt-6">
+            <PersonalInfoForm userProfile={userProfile} />
           </TabsContent>
 
           <TabsContent value="experiences" className="mt-6">
             <ExperiencesForm userProfile={userProfile} />
           </TabsContent>
 
-          <TabsContent value="upload" className="mt-6">
-            <ResumeUploadForm userProfile={userProfile} />
+          <TabsContent value="skills" className="mt-6">
+            <SkillsLanguagesForm userProfile={userProfile} />
           </TabsContent>
         </Tabs>
       </div>
@@ -165,4 +221,21 @@ function calculateProfileCompletion(profile: any): number {
   }
 
   return Math.round((completed / total) * 100);
+}
+
+function getTabStatuses(profile: any) {
+  return {
+    upload: 'empty', // Always empty since we don't store uploaded files
+    personal: profile.name && profile.email ? 'complete' : 'incomplete',
+    experiences: (profile.projects && profile.projects.length > 0) || (profile.education && profile.education.length > 0) 
+      ? 'complete' 
+      : profile.projects?.length > 0 || profile.education?.length > 0 
+        ? 'in-progress' 
+        : 'empty',
+    skills: (profile.skills && profile.skills.length > 0) || (profile.languages && profile.languages.length > 0)
+      ? 'complete'
+      : profile.skills?.length > 0 || profile.languages?.length > 0
+        ? 'in-progress'
+        : 'empty'
+  };
 }

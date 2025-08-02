@@ -5,8 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
-import { Briefcase, Trophy, Plus, Trash2, GraduationCap } from 'lucide-react';
+import { Briefcase, Trophy, Plus, Trash2, GraduationCap, Calendar, Building, Tag, X } from 'lucide-react';
 import backend from '~backend/client';
 
 interface ExperiencesFormProps {
@@ -29,30 +30,29 @@ export default function ExperiencesForm({ userProfile }: ExperiencesFormProps) {
   const [projects, setProjects] = useState(
     userProfile.projects?.length > 0 
       ? userProfile.projects.map((p: any) => ({
-          ...p,
+          title: p.title || '',
+          company: '', // New field
           startDate: p.startDate ? new Date(p.startDate).toISOString().split('T')[0] : '',
           endDate: p.endDate ? new Date(p.endDate).toISOString().split('T')[0] : '',
-          keywords: p.keywords?.join(', ') || '',
+          industryKeywords: p.keywords?.join(', ') || '',
+          skillsKeywords: '', // New field
+          description: p.description || '',
+          summary: p.summary || '',
+          achievements: p.achievements || '',
           bullets: p.bullets || []
         }))
       : [{
           title: '',
-          description: '',
-          summary: '',
-          keywords: '',
+          company: '',
           startDate: '',
           endDate: '',
+          industryKeywords: '',
+          skillsKeywords: '',
+          description: '',
+          summary: '',
+          achievements: '',
           bullets: []
         }]
-  );
-
-  const [achievements, setAchievements] = useState(
-    userProfile.achievements?.length > 0 
-      ? userProfile.achievements.map((a: any) => ({
-          ...a,
-          dateReceived: a.dateReceived ? new Date(a.dateReceived).toISOString().split('T')[0] : ''
-        }))
-      : [{ title: '', description: '', dateReceived: '' }]
   );
 
   const updateEducationMutation = useMutation({
@@ -91,7 +91,7 @@ export default function ExperiencesForm({ userProfile }: ExperiencesFormProps) {
           title: project.title,
           description: project.description,
           summary: project.summary,
-          keywords: project.keywords ? project.keywords.split(',').map((k: string) => k.trim()) : [],
+          keywords: project.industryKeywords ? project.industryKeywords.split(',').map((k: string) => k.trim()) : [],
           startDate: project.startDate ? new Date(project.startDate) : undefined,
           endDate: project.endDate ? new Date(project.endDate) : undefined,
           bullets: project.bullets || []
@@ -102,34 +102,6 @@ export default function ExperiencesForm({ userProfile }: ExperiencesFormProps) {
       toast({
         title: "Projects updated",
         description: "Your project information has been successfully updated.",
-      });
-      queryClient.invalidateQueries({ queryKey: ['user', userProfile.id] });
-    },
-    onError: (error) => {
-      console.error('Update error:', error);
-      toast({
-        title: "Update failed",
-        description: "Please try again or contact support if the problem persists.",
-        variant: "destructive",
-      });
-    }
-  });
-
-  const updateAchievementsMutation = useMutation({
-    mutationFn: async (achievementsData: any[]) => {
-      return backend.user.updateAchievements({
-        userId: userProfile.id,
-        achievements: achievementsData.map(achievement => ({
-          title: achievement.title,
-          description: achievement.description,
-          dateReceived: achievement.dateReceived ? new Date(achievement.dateReceived) : undefined
-        }))
-      });
-    },
-    onSuccess: () => {
-      toast({
-        title: "Achievements updated",
-        description: "Your achievements have been successfully updated.",
       });
       queryClient.invalidateQueries({ queryKey: ['user', userProfile.id] });
     },
@@ -155,12 +127,6 @@ export default function ExperiencesForm({ userProfile }: ExperiencesFormProps) {
     updateProjectsMutation.mutate(validProjects);
   };
 
-  const handleAchievementsSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const validAchievements = achievements.filter(achievement => achievement.title);
-    updateAchievementsMutation.mutate(validAchievements);
-  };
-
   // Education handlers
   const addEducation = () => {
     setEducation([...education, { institution: '', degree: '', graduationDate: '' }]);
@@ -180,11 +146,14 @@ export default function ExperiencesForm({ userProfile }: ExperiencesFormProps) {
   const addProject = () => {
     setProjects([...projects, {
       title: '',
-      description: '',
-      summary: '',
-      keywords: '',
+      company: '',
       startDate: '',
       endDate: '',
+      industryKeywords: '',
+      skillsKeywords: '',
+      description: '',
+      summary: '',
+      achievements: '',
       bullets: []
     }]);
   };
@@ -199,19 +168,45 @@ export default function ExperiencesForm({ userProfile }: ExperiencesFormProps) {
     setProjects(updated);
   };
 
-  // Achievement handlers
-  const addAchievement = () => {
-    setAchievements([...achievements, { title: '', description: '', dateReceived: '' }]);
+  const addKeywordTag = (projectIndex: number, field: 'industryKeywords' | 'skillsKeywords', keyword: string) => {
+    if (!keyword.trim()) return;
+    
+    const project = projects[projectIndex];
+    const currentKeywords = project[field] ? project[field].split(',').map((k: string) => k.trim()) : [];
+    
+    if (!currentKeywords.includes(keyword.trim())) {
+      const newKeywords = [...currentKeywords, keyword.trim()].join(', ');
+      updateProjectField(projectIndex, field, newKeywords);
+    }
   };
 
-  const removeAchievement = (index: number) => {
-    setAchievements(achievements.filter((_, i) => i !== index));
+  const removeKeywordTag = (projectIndex: number, field: 'industryKeywords' | 'skillsKeywords', keywordToRemove: string) => {
+    const project = projects[projectIndex];
+    const currentKeywords = project[field] ? project[field].split(',').map((k: string) => k.trim()) : [];
+    const newKeywords = currentKeywords.filter(k => k !== keywordToRemove).join(', ');
+    updateProjectField(projectIndex, field, newKeywords);
   };
 
-  const updateAchievementField = (index: number, field: string, value: string) => {
-    const updated = [...achievements];
-    updated[index] = { ...updated[index], [field]: value };
-    setAchievements(updated);
+  const renderKeywordTags = (projectIndex: number, field: 'industryKeywords' | 'skillsKeywords', color: string) => {
+    const project = projects[projectIndex];
+    const keywords = project[field] ? project[field].split(',').map((k: string) => k.trim()).filter(Boolean) : [];
+    
+    return (
+      <div className="flex flex-wrap gap-1 mt-2">
+        {keywords.map((keyword, keywordIndex) => (
+          <Badge key={keywordIndex} variant="outline" className={`${color} text-xs flex items-center gap-1`}>
+            {keyword}
+            <button
+              type="button"
+              onClick={() => removeKeywordTag(projectIndex, field, keyword)}
+              className="ml-1 hover:text-red-600"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </Badge>
+        ))}
+      </div>
+    );
   };
 
   return (
@@ -303,7 +298,7 @@ export default function ExperiencesForm({ userProfile }: ExperiencesFormProps) {
         </CardContent>
       </Card>
 
-      {/* Projects Section */}
+      {/* Projects & Work Experience Section */}
       <Card className="border-0 shadow-lg">
         <CardHeader>
           <CardTitle className="text-xl font-semibold flex items-center gap-2">
@@ -317,9 +312,12 @@ export default function ExperiencesForm({ userProfile }: ExperiencesFormProps) {
         <CardContent>
           <form onSubmit={handleProjectsSubmit} className="space-y-6">
             {projects.map((project, index) => (
-              <div key={index} className="p-4 border border-gray-200 rounded-lg space-y-4">
+              <div key={index} className="p-6 border border-gray-200 rounded-lg space-y-4">
                 <div className="flex justify-between items-center">
-                  <h4 className="font-medium text-gray-900">Project {index + 1}</h4>
+                  <h4 className="font-medium text-gray-900 flex items-center gap-2">
+                    <Briefcase className="w-4 h-4" />
+                    Experience {index + 1}
+                  </h4>
                   {projects.length > 1 && (
                     <Button
                       type="button"
@@ -333,29 +331,39 @@ export default function ExperiencesForm({ userProfile }: ExperiencesFormProps) {
                   )}
                 </div>
 
+                {/* Basic Information */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor={`title-${index}`}>Project Title</Label>
+                    <Label htmlFor={`title-${index}`} className="flex items-center gap-2">
+                      <Briefcase className="w-4 h-4" />
+                      Project/Job Title
+                    </Label>
                     <Input
                       id={`title-${index}`}
                       value={project.title}
                       onChange={(e) => updateProjectField(index, 'title', e.target.value)}
-                      placeholder="e.g., E-commerce Platform"
+                      placeholder="e.g., Senior Software Engineer, E-commerce Platform"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor={`keywords-${index}`}>Keywords</Label>
+                    <Label htmlFor={`company-${index}`} className="flex items-center gap-2">
+                      <Building className="w-4 h-4" />
+                      Company/Organization
+                    </Label>
                     <Input
-                      id={`keywords-${index}`}
-                      value={project.keywords}
-                      onChange={(e) => updateProjectField(index, 'keywords', e.target.value)}
-                      placeholder="React, Node.js, MongoDB (comma-separated)"
+                      id={`company-${index}`}
+                      value={project.company}
+                      onChange={(e) => updateProjectField(index, 'company', e.target.value)}
+                      placeholder="e.g., Google, Personal Project, Freelance"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor={`startDate-${index}`}>Start Date</Label>
+                    <Label htmlFor={`startDate-${index}`} className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4" />
+                      Start Date
+                    </Label>
                     <Input
                       id={`startDate-${index}`}
                       type="date"
@@ -365,36 +373,114 @@ export default function ExperiencesForm({ userProfile }: ExperiencesFormProps) {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor={`endDate-${index}`}>End Date</Label>
+                    <Label htmlFor={`endDate-${index}`} className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4" />
+                      End Date
+                    </Label>
                     <Input
                       id={`endDate-${index}`}
                       type="date"
                       value={project.endDate}
                       onChange={(e) => updateProjectField(index, 'endDate', e.target.value)}
                     />
+                    <p className="text-xs text-gray-500">Leave empty if currently ongoing</p>
                   </div>
                 </div>
 
+                {/* Keywords Section */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor={`industryKeywords-${index}`} className="flex items-center gap-2">
+                      <Tag className="w-4 h-4" />
+                      Industry Keywords
+                    </Label>
+                    <Input
+                      id={`industryKeywords-${index}`}
+                      value={project.industryKeywords}
+                      onChange={(e) => updateProjectField(index, 'industryKeywords', e.target.value)}
+                      placeholder="e.g., FinTech, E-commerce, Healthcare, SaaS"
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const value = e.currentTarget.value.split(',').pop()?.trim();
+                          if (value) {
+                            addKeywordTag(index, 'industryKeywords', value);
+                          }
+                        }
+                      }}
+                    />
+                    <p className="text-xs text-gray-500">Press Enter to add tags, comma-separated</p>
+                    {renderKeywordTags(index, 'industryKeywords', 'bg-purple-100 text-purple-800')}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor={`skillsKeywords-${index}`} className="flex items-center gap-2">
+                      <Tag className="w-4 h-4" />
+                      Skills Keywords
+                    </Label>
+                    <Input
+                      id={`skillsKeywords-${index}`}
+                      value={project.skillsKeywords}
+                      onChange={(e) => updateProjectField(index, 'skillsKeywords', e.target.value)}
+                      placeholder="e.g., React, Node.js, AWS, Python, Docker"
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const value = e.currentTarget.value.split(',').pop()?.trim();
+                          if (value) {
+                            addKeywordTag(index, 'skillsKeywords', value);
+                          }
+                        }
+                      }}
+                    />
+                    <p className="text-xs text-gray-500">Press Enter to add tags, comma-separated</p>
+                    {renderKeywordTags(index, 'skillsKeywords', 'bg-blue-100 text-blue-800')}
+                  </div>
+                </div>
+
+                {/* Description */}
                 <div className="space-y-2">
                   <Label htmlFor={`description-${index}`}>Description</Label>
                   <Textarea
                     id={`description-${index}`}
                     value={project.description}
                     onChange={(e) => updateProjectField(index, 'description', e.target.value)}
-                    placeholder="Detailed description of the project..."
-                    className="min-h-[80px]"
+                    placeholder="Detailed description of your role, responsibilities, and the project scope..."
+                    className="min-h-[120px]"
                   />
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>Recommended: 200-400 words</span>
+                    <span>{project.description.length} characters</span>
+                  </div>
                 </div>
 
+                {/* Summary */}
                 <div className="space-y-2">
                   <Label htmlFor={`summary-${index}`}>Summary</Label>
                   <Textarea
                     id={`summary-${index}`}
                     value={project.summary}
                     onChange={(e) => updateProjectField(index, 'summary', e.target.value)}
-                    placeholder="Brief summary for resume use..."
-                    className="min-h-[60px]"
+                    placeholder="Brief 2-3 sentence overview for resume use..."
+                    className="min-h-[80px]"
                   />
+                  <p className="text-xs text-gray-500">Concise summary for resume and quick reference</p>
+                </div>
+
+                {/* Achievements & Awards */}
+                <div className="space-y-2">
+                  <Label htmlFor={`achievements-${index}`} className="flex items-center gap-2">
+                    <Trophy className="w-4 h-4" />
+                    Achievements & Awards
+                  </Label>
+                  <Textarea
+                    id={`achievements-${index}`}
+                    value={project.achievements}
+                    onChange={(e) => updateProjectField(index, 'achievements', e.target.value)}
+                    placeholder="• Increased system performance by 40%&#10;• Led team of 5 developers&#10;• Reduced deployment time from 2 hours to 15 minutes&#10;• Won 'Innovation Award' for technical excellence"
+                    className="min-h-[100px]"
+                  />
+                  <p className="text-xs text-gray-500">Use bullet points (•) and include quantifiable results when possible</p>
                 </div>
               </div>
             ))}
@@ -407,7 +493,7 @@ export default function ExperiencesForm({ userProfile }: ExperiencesFormProps) {
                 className="flex items-center gap-2"
               >
                 <Plus className="w-4 h-4" />
-                Add Project
+                Add Experience
               </Button>
 
               <Button 
@@ -415,95 +501,7 @@ export default function ExperiencesForm({ userProfile }: ExperiencesFormProps) {
                 disabled={updateProjectsMutation.isPending}
                 className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
               >
-                {updateProjectsMutation.isPending ? 'Updating...' : 'Update Projects'}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-
-      {/* Achievements Section */}
-      <Card className="border-0 shadow-lg">
-        <CardHeader>
-          <CardTitle className="text-xl font-semibold flex items-center gap-2">
-            <Trophy className="w-5 h-5 text-blue-600" />
-            Achievements & Awards
-          </CardTitle>
-          <CardDescription>
-            Add your professional achievements, awards, and recognitions
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleAchievementsSubmit} className="space-y-6">
-            {achievements.map((achievement, index) => (
-              <div key={index} className="p-4 border border-gray-200 rounded-lg space-y-4">
-                <div className="flex justify-between items-center">
-                  <h4 className="font-medium text-gray-900">Achievement {index + 1}</h4>
-                  {achievements.length > 1 && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => removeAchievement(index)}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor={`achievementTitle-${index}`}>Achievement Title</Label>
-                    <Input
-                      id={`achievementTitle-${index}`}
-                      value={achievement.title}
-                      onChange={(e) => updateAchievementField(index, 'title', e.target.value)}
-                      placeholder="e.g., Employee of the Year, Dean's List"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor={`dateReceived-${index}`}>Date Received</Label>
-                    <Input
-                      id={`dateReceived-${index}`}
-                      type="date"
-                      value={achievement.dateReceived}
-                      onChange={(e) => updateAchievementField(index, 'dateReceived', e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor={`achievementDescription-${index}`}>Description</Label>
-                  <Textarea
-                    id={`achievementDescription-${index}`}
-                    value={achievement.description}
-                    onChange={(e) => updateAchievementField(index, 'description', e.target.value)}
-                    placeholder="Brief description of the achievement..."
-                    className="min-h-[80px]"
-                  />
-                </div>
-              </div>
-            ))}
-
-            <div className="flex gap-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={addAchievement}
-                className="flex items-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                Add Achievement
-              </Button>
-
-              <Button 
-                type="submit" 
-                disabled={updateAchievementsMutation.isPending}
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-              >
-                {updateAchievementsMutation.isPending ? 'Updating...' : 'Update Achievements'}
+                {updateProjectsMutation.isPending ? 'Updating...' : 'Update Experiences'}
               </Button>
             </div>
           </form>
