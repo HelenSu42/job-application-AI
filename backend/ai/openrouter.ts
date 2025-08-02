@@ -89,7 +89,7 @@ Provide realistic analysis based on the job requirements vs user qualifications.
 `;
 
     const response = await this.chat({
-      model: "meta-llama/llama-3.1-8b-instruct:free",
+      model: "qwen/qwen-2.5-coder-32b-instruct:free",
       messages: [
         { role: "system", content: "You are an expert job market analyst. Analyze job descriptions and provide detailed compatibility assessments. Always respond with valid JSON only." },
         { role: "user", content: prompt }
@@ -131,7 +131,7 @@ Create a professional, ATS-friendly resume with proper formatting.
 `;
 
     const response = await this.chat({
-      model: "microsoft/wizardlm-2-8x22b:free",
+      model: "qwen/qwen-2.5-coder-32b-instruct:free",
       messages: [
         { role: "system", content: "You are a professional resume writer. Create compelling, ATS-optimized resumes. Always respond with valid JSON only." },
         { role: "user", content: prompt }
@@ -170,7 +170,7 @@ Create a compelling, personalized cover letter.
 `;
 
     const response = await this.chat({
-      model: "meta-llama/llama-3.1-8b-instruct:free",
+      model: "qwen/qwen-2.5-coder-32b-instruct:free",
       messages: [
         { role: "system", content: "You are a professional cover letter writer. Create compelling, personalized cover letters. Always respond with valid JSON only." },
         { role: "user", content: prompt }
