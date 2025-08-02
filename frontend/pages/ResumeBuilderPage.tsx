@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,12 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/components/ui/use-toast';
 import { ArrowLeft, FileText, Download, Eye, Settings } from 'lucide-react';
 import backend from '~backend/client';
+import { useAuth } from '../contexts/AuthContext';
 import ResumePreview from '../components/resume/ResumePreview';
 import SectionCustomizer from '../components/resume/SectionCustomizer';
 import OptimizationSuggestions from '../components/resume/OptimizationSuggestions';
 
 export default function ResumeBuilderPage() {
-  const { userId } = useParams<{ userId: string }>();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [jobDescription, setJobDescription] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<'modern' | 'classic' | 'minimal'>('modern');
@@ -28,9 +29,9 @@ export default function ResumeBuilderPage() {
   ]);
 
   const { data: userProfile, isLoading: profileLoading } = useQuery({
-    queryKey: ['user', userId],
-    queryFn: () => backend.user.get({ id: parseInt(userId!) }),
-    enabled: !!userId
+    queryKey: ['user', user?.id],
+    queryFn: () => backend.user.get({ id: user!.id }),
+    enabled: !!user
   });
 
   const generateResumeMutation = useMutation({
@@ -98,11 +99,11 @@ export default function ResumeBuilderPage() {
     <div className="min-h-screen p-4">
       <div className="max-w-7xl mx-auto">
         <div className="mb-6 flex items-center justify-between">
-          <Link to={`/profile/${userId}`} className="inline-flex items-center text-blue-600 hover:text-blue-700 transition-colors">
+          <Link to="/profile" className="inline-flex items-center text-blue-600 hover:text-blue-700 transition-colors">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Profile
           </Link>
-          <Link to={`/cover-letter/${userId}`}>
+          <Link to="/cover-letter">
             <Button className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700">
               Generate Cover Letter
             </Button>

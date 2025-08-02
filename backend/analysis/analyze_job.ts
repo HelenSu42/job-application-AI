@@ -1,7 +1,5 @@
 import { api } from "encore.dev/api";
-import { secret } from "encore.dev/config";
-
-const openAIKey = secret("OpenAIKey");
+import { openRouterClient } from "../ai/openrouter";
 
 export interface AnalyzeJobRequest {
   jobDescription: string;
@@ -75,74 +73,87 @@ export interface Recommendation {
 export const analyzeJob = api<AnalyzeJobRequest, JobAnalysisResult>(
   { expose: true, method: "POST", path: "/analysis/job" },
   async (req) => {
-    // Mock analysis for now - in real implementation, this would use AI
-    const mockSkillsGap: SkillGap[] = [
-      {
-        skillName: "React",
-        required: true,
-        userLevel: 3,
-        requiredLevel: 4,
-        priority: "high"
-      },
-      {
-        skillName: "TypeScript",
-        required: true,
-        userLevel: 2,
-        requiredLevel: 4,
-        priority: "high"
-      },
-      {
-        skillName: "AWS",
-        required: false,
-        userLevel: 0,
-        requiredLevel: 3,
-        priority: "medium"
-      }
-    ];
+    try {
+      const userProfile = {
+        education: req.userEducation,
+        skills: req.userSkills,
+        projects: req.userProjects
+      };
 
-    const mockRecommendations: Recommendation[] = [
-      {
-        type: "skill",
-        title: "Improve TypeScript proficiency",
-        description: "Focus on advanced TypeScript features like generics and utility types",
-        priority: "high",
-        timeToComplete: "2-3 weeks"
-      },
-      {
-        type: "project",
-        title: "Build a full-stack application",
-        description: "Create a project that demonstrates end-to-end development skills",
-        priority: "medium",
-        timeToComplete: "4-6 weeks"
-      }
-    ];
+      const analysis = await openRouterClient.analyzeJobDescription(req.jobDescription, userProfile);
+      
+      // Add salary analysis if current salary is provided
+      const salaryAnalysis: SalaryAnalysis | undefined = req.currentSalary ? {
+        estimatedRange: {
+          min: Math.round(req.currentSalary * 1.1),
+          max: Math.round(req.currentSalary * 1.3)
+        },
+        changePercentage: 20,
+        marketComparison: "Above average for this role and location"
+      } : undefined;
 
-    const mockSalaryAnalysis: SalaryAnalysis | undefined = req.currentSalary ? {
-      estimatedRange: {
-        min: Math.round(req.currentSalary * 1.1),
-        max: Math.round(req.currentSalary * 1.3)
-      },
-      changePercentage: 20,
-      marketComparison: "Above average for this role and location"
-    } : undefined;
+      return {
+        ...analysis,
+        salaryAnalysis
+      };
+    } catch (error) {
+      console.error('AI analysis failed, using fallback:', error);
+      
+      // Fallback analysis
+      const mockSkillsGap: SkillGap[] = [
+        {
+          skillName: "React",
+          required: true,
+          userLevel: 3,
+          requiredLevel: 4,
+          priority: "high"
+        },
+        {
+          skillName: "TypeScript",
+          required: true,
+          userLevel: 2,
+          requiredLevel: 4,
+          priority: "high"
+        }
+      ];
 
-    const matchingScore: MatchingScore = {
-      education: 85,
-      projects: 70,
-      skills: 65,
-      network: 40
-    };
+      const mockRecommendations: Recommendation[] = [
+        {
+          type: "skill",
+          title: "Improve TypeScript proficiency",
+          description: "Focus on advanced TypeScript features like generics and utility types",
+          priority: "high",
+          timeToComplete: "2-3 weeks"
+        }
+      ];
 
-    const overallMatchPercentage = Math.round(
-      (matchingScore.education + matchingScore.projects + matchingScore.skills + matchingScore.network) / 4
-    );
+      const mockSalaryAnalysis: SalaryAnalysis | undefined = req.currentSalary ? {
+        estimatedRange: {
+          min: Math.round(req.currentSalary * 1.1),
+          max: Math.round(req.currentSalary * 1.3)
+        },
+        changePercentage: 20,
+        marketComparison: "Above average for this role and location"
+      } : undefined;
 
-    return {
-      matchingScore,
-      skillsGap: mockSkillsGap,
-      salaryAnalysis: mockSalaryAnalysis,
-      recommendations: mockRecommendations,
-      overallMatchPercentage
-    };
+      const matchingScore: MatchingScore = {
+        education: 85,
+        projects: 70,
+        skills: 65,
+        network: 40
+      };
+
+      const overallMatchPercentage = Math.round(
+        (matchingScore.education + matchingScore.projects + matchingScore.skills + matchingScore.network) / 4
+      );
+
+      return {
+        matchingScore,
+        skillsGap: mockSkillsGap,
+        salaryAnalysis: mockSalaryAnalysis,
+        recommendations: mockRecommendations,
+        overallMatchPercentage
+      };
+    }
   }
 );

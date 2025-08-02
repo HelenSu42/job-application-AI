@@ -1,28 +1,30 @@
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
-import { ArrowLeft, Target, TrendingUp, AlertCircle, DollarSign } from 'lucide-react';
+import { ArrowLeft, Target, TrendingUp, AlertCircle } from 'lucide-react';
 import backend from '~backend/client';
+import { useAuth } from '../contexts/AuthContext';
 import JobMatchRadar from '../components/analysis/JobMatchRadar';
 import SkillsGapAnalysis from '../components/analysis/SkillsGapAnalysis';
 import SalaryAnalysis from '../components/analysis/SalaryAnalysis';
 import RecommendationsList from '../components/analysis/RecommendationsList';
 
 export default function JobAnalysisPage() {
-  const { userId } = useParams<{ userId: string }>();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [jobDescription, setJobDescription] = useState('');
   const [analysisResult, setAnalysisResult] = useState<any>(null);
 
   const { data: userProfile, isLoading: profileLoading } = useQuery({
-    queryKey: ['user', userId],
-    queryFn: () => backend.user.get({ id: parseInt(userId!) }),
-    enabled: !!userId
+    queryKey: ['user', user?.id],
+    queryFn: () => backend.user.get({ id: user!.id }),
+    enabled: !!user
   });
 
   const analyzeJobMutation = useMutation({
@@ -80,6 +82,10 @@ export default function JobAnalysisPage() {
     analyzeJobMutation.mutate(jobDescription);
   };
 
+  const handleCreateImprovementPlan = () => {
+    navigate('/improvement', { state: { analysisResult } });
+  };
+
   if (profileLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -95,16 +101,17 @@ export default function JobAnalysisPage() {
     <div className="min-h-screen p-4">
       <div className="max-w-6xl mx-auto">
         <div className="mb-6 flex items-center justify-between">
-          <Link to={`/profile/${userId}`} className="inline-flex items-center text-blue-600 hover:text-blue-700 transition-colors">
+          <Link to="/profile" className="inline-flex items-center text-blue-600 hover:text-blue-700 transition-colors">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Profile
           </Link>
           {analysisResult && (
-            <Link to={`/improvement/${userId}`} state={{ analysisResult }}>
-              <Button className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700">
-                Create Improvement Plan
-              </Button>
-            </Link>
+            <Button 
+              onClick={handleCreateImprovementPlan}
+              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+            >
+              Create Improvement Plan
+            </Button>
           )}
         </div>
 

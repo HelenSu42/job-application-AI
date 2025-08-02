@@ -1,4 +1,5 @@
 import { api } from "encore.dev/api";
+import { openRouterClient } from "../ai/openrouter";
 
 export interface GenerateCoverLetterRequest {
   userProfile: UserProfile;
@@ -49,10 +50,21 @@ export interface GeneratedCoverLetter {
 export const generateCoverLetter = api<GenerateCoverLetterRequest, GeneratedCoverLetter>(
   { expose: true, method: "POST", path: "/resume/cover-letter" },
   async (req) => {
-    const companyName = req.companyName || "[Company Name]";
-    
-    // Mock cover letter generation
-    const mockContent = `Dear Hiring Manager,
+    try {
+      const result = await openRouterClient.generateCoverLetter(
+        req.userProfile, 
+        req.jobDescription, 
+        req.companyName, 
+        req.tone
+      );
+      return result;
+    } catch (error) {
+      console.error('AI cover letter generation failed, using fallback:', error);
+      
+      const companyName = req.companyName || "[Company Name]";
+      
+      // Fallback cover letter generation
+      const mockContent = `Dear Hiring Manager,
 
 I am writing to express my strong interest in the position at ${companyName}. With my background in ${req.userProfile.skills.slice(0, 3).map(s => s.skillName).join(', ')}, I am excited about the opportunity to contribute to your team.
 
@@ -70,16 +82,17 @@ Thank you for your consideration. I look forward to hearing from you.
 Sincerely,
 ${req.userProfile.name}`;
 
-    const suggestions = [
-      "Research the company's recent projects or initiatives to add more specific details",
-      "Quantify your achievements with specific numbers or metrics where possible",
-      "Tailor the opening paragraph to match the specific role requirements"
-    ];
+      const suggestions = [
+        "Research the company's recent projects or initiatives to add more specific details",
+        "Quantify your achievements with specific numbers or metrics where possible",
+        "Tailor the opening paragraph to match the specific role requirements"
+      ];
 
-    return {
-      content: mockContent,
-      suggestions,
-      keywordMatches: 12
-    };
+      return {
+        content: mockContent,
+        suggestions,
+        keywordMatches: 12
+      };
+    }
   }
 );

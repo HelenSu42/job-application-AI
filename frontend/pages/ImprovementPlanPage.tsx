@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, useLocation, Link } from 'react-router-dom';
+import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,15 +7,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
-import { ArrowLeft, Calendar, Clock, Target, Lightbulb } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, Target } from 'lucide-react';
 import backend from '~backend/client';
 import TimelineView from '../components/improvement/TimelineView';
 import SkillsPriority from '../components/improvement/SkillsPriority';
 import ProjectSuggestions from '../components/improvement/ProjectSuggestions';
 
 export default function ImprovementPlanPage() {
-  const { userId } = useParams<{ userId: string }>();
   const location = useLocation();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const analysisResult = location.state?.analysisResult;
 
@@ -62,13 +62,17 @@ export default function ImprovementPlanPage() {
     generatePlanMutation.mutate();
   };
 
+  const handleBuildResume = () => {
+    navigate('/resume');
+  };
+
   if (!analysisResult) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Card className="w-full max-w-md">
           <CardContent className="text-center p-6">
             <p className="text-gray-600 mb-4">No analysis data found</p>
-            <Link to={`/analysis/${userId}`}>
+            <Link to="/analysis">
               <Button>Go to Job Analysis</Button>
             </Link>
           </CardContent>
@@ -81,16 +85,17 @@ export default function ImprovementPlanPage() {
     <div className="min-h-screen p-4">
       <div className="max-w-6xl mx-auto">
         <div className="mb-6 flex items-center justify-between">
-          <Link to={`/analysis/${userId}`} className="inline-flex items-center text-blue-600 hover:text-blue-700 transition-colors">
+          <Link to="/analysis" className="inline-flex items-center text-blue-600 hover:text-blue-700 transition-colors">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Analysis
           </Link>
           {improvementPlan && (
-            <Link to={`/resume/${userId}`}>
-              <Button className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700">
-                Build Resume
-              </Button>
-            </Link>
+            <Button 
+              onClick={handleBuildResume}
+              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+            >
+              Build Resume
+            </Button>
           )}
         </div>
 

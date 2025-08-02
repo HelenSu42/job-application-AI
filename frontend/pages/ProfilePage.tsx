@@ -1,28 +1,31 @@
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
-import { ArrowLeft, User, GraduationCap, Code, Globe, Trophy, Briefcase } from 'lucide-react';
+import { ArrowLeft, User, Code, Briefcase, Upload, LogOut } from 'lucide-react';
 import backend from '~backend/client';
+import { useAuth } from '../contexts/AuthContext';
 import PersonalInfoForm from '../components/profile/PersonalInfoForm';
-import EducationForm from '../components/profile/EducationForm';
-import SkillsForm from '../components/profile/SkillsForm';
-import LanguagesForm from '../components/profile/LanguagesForm';
-import ProjectsForm from '../components/profile/ProjectsForm';
-import AchievementsForm from '../components/profile/AchievementsForm';
+import SkillsLanguagesForm from '../components/profile/SkillsLanguagesForm';
+import ExperiencesForm from '../components/profile/ExperiencesForm';
+import ResumeUploadForm from '../components/profile/ResumeUploadForm';
 
 export default function ProfilePage() {
-  const { userId } = useParams<{ userId: string }>();
+  const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('personal');
 
   const { data: userProfile, isLoading, error } = useQuery({
-    queryKey: ['user', userId],
-    queryFn: () => backend.user.get({ id: parseInt(userId!) }),
-    enabled: !!userId
+    queryKey: ['user', user?.id],
+    queryFn: () => backend.user.get({ id: user!.id }),
+    enabled: !!user
   });
+
+  const handleLogout = async () => {
+    await logout();
+  };
 
   if (isLoading) {
     return (
@@ -53,12 +56,10 @@ export default function ProfilePage() {
   const completionPercentage = calculateProfileCompletion(userProfile);
 
   const tabs = [
-    { id: 'personal', label: 'Personal', icon: User },
-    { id: 'education', label: 'Education', icon: GraduationCap },
-    { id: 'skills', label: 'Skills', icon: Code },
-    { id: 'languages', label: 'Languages', icon: Globe },
-    { id: 'projects', label: 'Projects', icon: Briefcase },
-    { id: 'achievements', label: 'Achievements', icon: Trophy }
+    { id: 'personal', label: 'Personal Info', icon: User },
+    { id: 'skills', label: 'Skills & Languages', icon: Code },
+    { id: 'experiences', label: 'Experiences', icon: Briefcase },
+    { id: 'upload', label: 'Resume Upload', icon: Upload }
   ];
 
   return (
@@ -69,11 +70,17 @@ export default function ProfilePage() {
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Home
           </Link>
-          <Link to={`/analysis/${userId}`}>
-            <Button className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700">
-              Analyze Job Opportunities
+          <div className="flex items-center gap-4">
+            <Link to="/analysis">
+              <Button className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700">
+                Analyze Job Opportunities
+              </Button>
+            </Link>
+            <Button variant="outline" onClick={handleLogout} className="flex items-center gap-2">
+              <LogOut className="w-4 h-4" />
+              Logout
             </Button>
-          </Link>
+          </div>
         </div>
 
         <div className="mb-8">
@@ -101,41 +108,33 @@ export default function ProfilePage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6 bg-white border shadow-sm">
+          <TabsList className="grid w-full grid-cols-4 bg-white border shadow-sm h-auto">
             {tabs.map((tab) => (
               <TabsTrigger
                 key={tab.id}
                 value={tab.id}
-                className="flex flex-col items-center gap-1 py-3 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700"
+                className="flex flex-col items-center gap-2 py-4 px-6 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 data-[state=active]:border-blue-200 rounded-lg"
               >
-                <tab.icon className="w-4 h-4" />
-                <span className="text-xs">{tab.label}</span>
+                <tab.icon className="w-5 h-5" />
+                <span className="text-sm font-medium">{tab.label}</span>
               </TabsTrigger>
             ))}
           </TabsList>
 
-          <TabsContent value="personal">
+          <TabsContent value="personal" className="mt-6">
             <PersonalInfoForm userProfile={userProfile} />
           </TabsContent>
 
-          <TabsContent value="education">
-            <EducationForm userProfile={userProfile} />
+          <TabsContent value="skills" className="mt-6">
+            <SkillsLanguagesForm userProfile={userProfile} />
           </TabsContent>
 
-          <TabsContent value="skills">
-            <SkillsForm userProfile={userProfile} />
+          <TabsContent value="experiences" className="mt-6">
+            <ExperiencesForm userProfile={userProfile} />
           </TabsContent>
 
-          <TabsContent value="languages">
-            <LanguagesForm userProfile={userProfile} />
-          </TabsContent>
-
-          <TabsContent value="projects">
-            <ProjectsForm userProfile={userProfile} />
-          </TabsContent>
-
-          <TabsContent value="achievements">
-            <AchievementsForm userProfile={userProfile} />
+          <TabsContent value="upload" className="mt-6">
+            <ResumeUploadForm userProfile={userProfile} />
           </TabsContent>
         </Tabs>
       </div>
@@ -145,25 +144,25 @@ export default function ProfilePage() {
 
 function calculateProfileCompletion(profile: any): number {
   let completed = 0;
-  let total = 6;
+  let total = 4;
 
   // Personal info (always has basic info since it's required)
   completed += 1;
 
+  // Skills & Languages
+  if ((profile.skills && profile.skills.length > 0) || (profile.languages && profile.languages.length > 0)) {
+    completed += 1;
+  }
+
+  // Experiences (projects or achievements)
+  if ((profile.projects && profile.projects.length > 0) || (profile.achievements && profile.achievements.length > 0)) {
+    completed += 1;
+  }
+
   // Education
-  if (profile.education && profile.education.length > 0) completed += 1;
-
-  // Skills
-  if (profile.skills && profile.skills.length > 0) completed += 1;
-
-  // Languages
-  if (profile.languages && profile.languages.length > 0) completed += 1;
-
-  // Projects
-  if (profile.projects && profile.projects.length > 0) completed += 1;
-
-  // Achievements
-  if (profile.achievements && profile.achievements.length > 0) completed += 1;
+  if (profile.education && profile.education.length > 0) {
+    completed += 1;
+  }
 
   return Math.round((completed / total) * 100);
 }

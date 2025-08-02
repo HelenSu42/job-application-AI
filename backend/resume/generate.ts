@@ -1,4 +1,5 @@
 import { api } from "encore.dev/api";
+import { openRouterClient } from "../ai/openrouter";
 
 export interface GenerateResumeRequest {
   userProfile: UserProfile;
@@ -80,8 +81,14 @@ export interface OptimizationSuggestion {
 export const generate = api<GenerateResumeRequest, GeneratedResume>(
   { expose: true, method: "POST", path: "/resume/generate" },
   async (req) => {
-    // Mock resume generation - in real implementation, this would create actual resume content
-    const mockContent = `
+    try {
+      const result = await openRouterClient.generateResume(req.userProfile, req.jobDescription);
+      return result;
+    } catch (error) {
+      console.error('AI resume generation failed, using fallback:', error);
+      
+      // Fallback resume generation
+      const mockContent = `
 # ${req.userProfile.name}
 ${req.userProfile.email} | ${req.userProfile.phone || ''} | ${req.userProfile.location || ''}
 
@@ -104,30 +111,31 @@ ${req.userProfile.skills.map(skill =>
 ${req.userProfile.languages.map(lang => 
   `${lang.language} (${lang.proficiency})`
 ).join(' • ')}
-    `.trim();
+      `.trim();
 
-    const optimizationSuggestions: OptimizationSuggestion[] = [
-      {
-        type: "keyword",
-        message: "Consider adding more industry-specific keywords from the job description",
-        priority: "high"
-      },
-      {
-        type: "length",
-        message: "Resume is well within the recommended 1-2 page limit",
-        priority: "low"
-      },
-      {
-        type: "format",
-        message: "Use consistent bullet point formatting throughout",
-        priority: "medium"
-      }
-    ];
+      const optimizationSuggestions: OptimizationSuggestion[] = [
+        {
+          type: "keyword",
+          message: "Consider adding more industry-specific keywords from the job description",
+          priority: "high"
+        },
+        {
+          type: "length",
+          message: "Resume is well within the recommended 1-2 page limit",
+          priority: "low"
+        },
+        {
+          type: "format",
+          message: "Use consistent bullet point formatting throughout",
+          priority: "medium"
+        }
+      ];
 
-    return {
-      content: mockContent,
-      optimizationSuggestions,
-      atsScore: 85
-    };
+      return {
+        content: mockContent,
+        optimizationSuggestions,
+        atsScore: 85
+      };
+    }
   }
 );

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,12 +7,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { ArrowLeft, User, Mail, Phone, MapPin, DollarSign } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import backend from '~backend/client';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function RegistrationPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { login } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -31,12 +32,20 @@ export default function RegistrationPage() {
         currentSalary: data.currentSalary ? parseInt(data.currentSalary) : undefined
       });
     },
-    onSuccess: (user) => {
+    onSuccess: async (user) => {
       toast({
         title: "Account created successfully!",
-        description: "Welcome to Job Application Assistant. Let's set up your profile.",
+        description: "Welcome to Job Application Assistant. Logging you in...",
       });
-      navigate(`/profile/${user.id}`);
+      
+      // Auto-login after registration
+      try {
+        await login(user.email, 'demo-password');
+        navigate('/profile');
+      } catch (error) {
+        console.error('Auto-login failed:', error);
+        navigate('/login');
+      }
     },
     onError: (error) => {
       console.error('Registration error:', error);
@@ -182,6 +191,15 @@ export default function RegistrationPage() {
                 {createUserMutation.isPending ? 'Creating Account...' : 'Create Account'}
               </Button>
             </form>
+
+            <div className="mt-6 text-center">
+              <p className="text-sm text-gray-600">
+                Already have an account?{' '}
+                <Link to="/login" className="text-blue-600 hover:text-blue-700 font-medium">
+                  Sign in here
+                </Link>
+              </p>
+            </div>
 
             <div className="mt-6 p-4 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-800">

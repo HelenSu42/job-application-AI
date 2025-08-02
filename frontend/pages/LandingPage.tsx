@@ -51,19 +51,12 @@ export default function LandingPage() {
               AI-powered job application assistance that analyzes opportunities, optimizes your profile, 
               and generates personalized resumes and cover letters.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="flex justify-center">
               <Link to="/register">
                 <Button size="lg" className="bg-white text-blue-700 hover:bg-blue-50 px-8 py-3 text-lg font-semibold">
                   Get Started Free
                 </Button>
               </Link>
-              <Button 
-                variant="outline" 
-                size="lg" 
-                className="border-white text-white hover:bg-white hover:text-blue-700 px-8 py-3 text-lg font-semibold"
-              >
-                Learn More
-              </Button>
             </div>
           </div>
         </div>

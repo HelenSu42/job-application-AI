@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,11 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/components/ui/use-toast';
 import { ArrowLeft, Mail, Download, Eye, Settings } from 'lucide-react';
 import backend from '~backend/client';
+import { useAuth } from '../contexts/AuthContext';
 import CoverLetterPreview from '../components/cover-letter/CoverLetterPreview';
 import CoverLetterSuggestions from '../components/cover-letter/CoverLetterSuggestions';
 
 export default function CoverLetterPage() {
-  const { userId } = useParams<{ userId: string }>();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [jobDescription, setJobDescription] = useState('');
   const [companyName, setCompanyName] = useState('');
@@ -22,9 +23,9 @@ export default function CoverLetterPage() {
   const [generatedCoverLetter, setGeneratedCoverLetter] = useState<any>(null);
 
   const { data: userProfile, isLoading: profileLoading } = useQuery({
-    queryKey: ['user', userId],
-    queryFn: () => backend.user.get({ id: parseInt(userId!) }),
-    enabled: !!userId
+    queryKey: ['user', user?.id],
+    queryFn: () => backend.user.get({ id: user!.id }),
+    enabled: !!user
   });
 
   const generateCoverLetterMutation = useMutation({
@@ -96,7 +97,7 @@ export default function CoverLetterPage() {
     <div className="min-h-screen p-4">
       <div className="max-w-7xl mx-auto">
         <div className="mb-6 flex items-center justify-between">
-          <Link to={`/resume/${userId}`} className="inline-flex items-center text-blue-600 hover:text-blue-700 transition-colors">
+          <Link to="/resume" className="inline-flex items-center text-blue-600 hover:text-blue-700 transition-colors">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Resume Builder
           </Link>
