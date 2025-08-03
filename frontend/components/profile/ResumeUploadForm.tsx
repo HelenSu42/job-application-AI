@@ -9,14 +9,16 @@ import backend from '~backend/client';
 
 interface ResumeUploadFormProps {
   userProfile: any;
+  onParsingComplete?: () => void;
 }
 
-export default function ResumeUploadForm({ userProfile }: ResumeUploadFormProps) {
+export default function ResumeUploadForm({ userProfile, onParsingComplete }: ResumeUploadFormProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isDragging, setIsDragging] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [processingStage, setProcessingStage] = useState<'idle' | 'uploading' | 'parsing' | 'updating' | 'complete' | 'error'>('idle');
+  const [extractedData, setExtractedData] = useState<any>(null);
 
   const parseResumeMutation = useMutation({
     mutationFn: async (file: File) => {
@@ -43,7 +45,7 @@ export default function ResumeUploadForm({ userProfile }: ResumeUploadFormProps)
         updatePromises.push(
           backend.user.updateEducation({
             userId: userProfile.id,
-            education: extractedData.education.map(edu => ({
+            education: extractedData.education.map((edu: any) => ({
               institution: edu.institution,
               degree: edu.degree,
               graduationDate: edu.graduationDate ? new Date(edu.graduationDate) : undefined
@@ -57,14 +59,20 @@ export default function ResumeUploadForm({ userProfile }: ResumeUploadFormProps)
         updatePromises.push(
           backend.user.updateProjects({
             userId: userProfile.id,
-            projects: extractedData.projects.map(project => ({
+            projects: extractedData.projects.map((project: any) => ({
               title: project.title,
               description: project.description,
-              summary: project.description.length > 200 ? project.description.substring(0, 200) + '...' : project.description,
+              summary: project.description && project.description.length > 200 
+                ? project.description.substring(0, 200) + '...' 
+                : project.description,
               keywords: project.skills || [],
               startDate: project.startDate ? new Date(project.startDate) : undefined,
               endDate: project.endDate ? new Date(project.endDate) : undefined,
-              bullets: []
+              bullets: project.achievements ? [{
+                bulletText: project.achievements,
+                targetType: 'achievement',
+                keywords: project.skills || []
+              }] : []
             }))
           })
         );
@@ -75,7 +83,7 @@ export default function ResumeUploadForm({ userProfile }: ResumeUploadFormProps)
         updatePromises.push(
           backend.user.updateSkills({
             userId: userProfile.id,
-            skills: extractedData.skills.map(skill => ({
+            skills: extractedData.skills.map((skill: any) => ({
               skillName: skill.name,
               skillLevel: skill.level,
               category: skill.category
@@ -89,7 +97,7 @@ export default function ResumeUploadForm({ userProfile }: ResumeUploadFormProps)
         updatePromises.push(
           backend.user.updateLanguages({
             userId: userProfile.id,
-            languages: extractedData.languages.map(lang => ({
+            languages: extractedData.languages.map((lang: any) => ({
               language: lang.language,
               proficiency: lang.proficiency
             }))
@@ -102,21 +110,27 @@ export default function ResumeUploadForm({ userProfile }: ResumeUploadFormProps)
       
       return extractedData;
     },
-    onSuccess: (extractedData) => {
+    onSuccess: (data) => {
       setProcessingStage('complete');
+      setExtractedData(data);
       
       // Refresh the user profile data
       queryClient.invalidateQueries({ queryKey: ['user', userProfile.id] });
 
       toast({
         title: "Resume parsed and profile updated!",
-        description: "Your profile has been automatically populated with the extracted information. Please review the other tabs.",
+        description: "Your profile has been automatically populated. Please review and edit the information in other tabs.",
       });
 
-      // Reset the upload state after a delay
+      // Reset the upload state after a delay and trigger callback
       setTimeout(() => {
         setUploadedFile(null);
         setProcessingStage('idle');
+        setExtractedData(null);
+        // Call the callback to switch to other tabs
+        if (onParsingComplete) {
+          onParsingComplete();
+        }
       }, 3000);
     },
     onError: (error) => {
@@ -124,7 +138,7 @@ export default function ResumeUploadForm({ userProfile }: ResumeUploadFormProps)
       setProcessingStage('error');
       toast({
         title: "Failed to parse resume",
-        description: "Please try again or enter information manually.",
+        description: "Please try again or enter information manually in the other tabs.",
         variant: "destructive",
       });
     }
@@ -201,10 +215,17 @@ export default function ResumeUploadForm({ userProfile }: ResumeUploadFormProps)
   const handleDiscardData = () => {
     setUploadedFile(null);
     setProcessingStage('idle');
+    setExtractedData(null);
     toast({
       title: "Upload cancelled",
       description: "The file upload has been cancelled.",
     });
+  };
+
+  const handleViewExtractedData = () => {
+    if (onParsingComplete) {
+      onParsingComplete();
+    }
   };
 
   const getProcessingProgress = () => {
@@ -319,31 +340,82 @@ export default function ResumeUploadForm({ userProfile }: ResumeUploadFormProps)
           )}
 
           {/* Success State */}
-          {processingStage === 'complete' && (
+          {processingStage === 'complete' && extractedData && (
             <div className="space-y-4">
               <div className="flex items-center gap-4 p-4 bg-green-50 rounded-lg border border-green-200">
                 <CheckCircle className="w-8 h-8 text-green-600" />
                 <div className="flex-1">
                   <p className="font-medium text-green-900">Resume parsed successfully!</p>
                   <p className="text-sm text-green-700">
-                    Your profile has been automatically updated with the extracted information. 
-                    Please review the other tabs and make any necessary adjustments.
+                    Your profile has been automatically updated with the extracted information.
                   </p>
                 </div>
               </div>
 
+              {/* Show extracted data summary */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h4 className="font-medium text-blue-900 mb-2">What was updated:</h4>
-                <ul className="text-sm text-blue-700 space-y-1">
-                  <li>• Personal information and contact details</li>
-                  <li>• Education history and qualifications</li>
-                  <li>• Work experience and project details</li>
-                  <li>• Technical skills and proficiency levels</li>
-                  <li>• Language skills and proficiency</li>
-                </ul>
-                <p className="text-sm text-blue-600 mt-3 font-medium">
-                  💡 Switch to other tabs to see the updated information!
-                </p>
+                <h4 className="font-medium text-blue-900 mb-3">Extracted Information:</h4>
+                <div className="space-y-2 text-sm">
+                  {extractedData.personalInfo && (
+                    <div>
+                      <span className="font-medium text-blue-800">Personal Info:</span>
+                      <span className="text-blue-700 ml-2">
+                        {extractedData.personalInfo.name} ({extractedData.personalInfo.email})
+                      </span>
+                    </div>
+                  )}
+                  {extractedData.education && extractedData.education.length > 0 && (
+                    <div>
+                      <span className="font-medium text-blue-800">Education:</span>
+                      <span className="text-blue-700 ml-2">
+                        {extractedData.education.length} degree(s)
+                      </span>
+                    </div>
+                  )}
+                  {extractedData.projects && extractedData.projects.length > 0 && (
+                    <div>
+                      <span className="font-medium text-blue-800">Projects/Experience:</span>
+                      <span className="text-blue-700 ml-2">
+                        {extractedData.projects.length} project(s)
+                      </span>
+                    </div>
+                  )}
+                  {extractedData.skills && extractedData.skills.length > 0 && (
+                    <div>
+                      <span className="font-medium text-blue-800">Skills:</span>
+                      <span className="text-blue-700 ml-2">
+                        {extractedData.skills.length} skill(s)
+                      </span>
+                    </div>
+                  )}
+                  {extractedData.languages && extractedData.languages.length > 0 && (
+                    <div>
+                      <span className="font-medium text-blue-800">Languages:</span>
+                      <span className="text-blue-700 ml-2">
+                        {extractedData.languages.length} language(s)
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  onClick={handleViewExtractedData}
+                  className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                >
+                  Review & Edit Information
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setProcessingStage('idle');
+                    setUploadedFile(null);
+                    setExtractedData(null);
+                  }}
+                >
+                  Upload Another
+                </Button>
               </div>
             </div>
           )}

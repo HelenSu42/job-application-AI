@@ -47,7 +47,7 @@ export class OpenRouterClient {
 
   async parseResume(resumeText: string): Promise<any> {
     const prompt = `
-Parse this resume and extract information in the following JSON format:
+Parse this resume and extract information in the following JSON format. Be very careful to extract accurate information and avoid making assumptions:
 
 {
   "personalInfo": {
@@ -77,8 +77,8 @@ Parse this resume and extract information in the following JSON format:
   "skills": [
     {
       "name": "string",
-      "level": number (1-5),
-      "category": "string"
+      "level": number (1-5, where 1=beginner, 3=intermediate, 5=expert),
+      "category": "string (Programming Languages, Frameworks & Libraries, Databases, Cloud & DevOps, Tools & Software, Soft Skills, Other)"
     }
   ],
   "languages": [
@@ -89,28 +89,198 @@ Parse this resume and extract information in the following JSON format:
   ]
 }
 
+Important parsing guidelines:
+1. Extract only information that is clearly present in the resume
+2. For skills, infer reasonable proficiency levels based on context (years of experience, project complexity, etc.)
+3. Categorize skills appropriately (Programming Languages, Frameworks & Libraries, etc.)
+4. For projects/work experience, extract company names, job titles, and date ranges accurately
+5. Parse dates in YYYY-MM-DD format, use approximate dates if only year/month is provided
+6. If information is missing or unclear, omit that field rather than guessing
+7. Return valid JSON only, no additional text
+
 Resume text:
 ${resumeText}
-
-Extract only information that is clearly present in the resume. Do not make assumptions or add fictional data. Return valid JSON only.
 `;
 
     const response = await this.chat({
       model: "qwen/qwen-2.5-coder-32b-instruct:free",
       messages: [
-        { role: "system", content: "You are an expert resume parser. Extract information accurately and return valid JSON only." },
+        { role: "system", content: "You are an expert resume parser. Extract information accurately and return valid JSON only. Pay close attention to dates, company names, and skill categorization." },
         { role: "user", content: prompt }
       ],
       temperature: 0.1,
-      max_tokens: 2000
+      max_tokens: 3000
     });
 
     try {
-      return JSON.parse(response);
+      // Clean the response to ensure it's valid JSON
+      const cleanedResponse = response.trim();
+      const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/);
+      const jsonString = jsonMatch ? jsonMatch[0] : cleanedResponse;
+      
+      const parsed = JSON.parse(jsonString);
+      
+      // Validate and clean the parsed data
+      return this.validateAndCleanParsedData(parsed);
     } catch (error) {
       console.error('Failed to parse AI response:', error);
+      console.error('Raw response:', response);
       return this.getMockResumeData();
     }
+  }
+
+  private validateAndCleanParsedData(data: any): any {
+    const cleaned: any = {
+      personalInfo: {},
+      education: [],
+      projects: [],
+      skills: [],
+      languages: []
+    };
+
+    // Validate personal info
+    if (data.personalInfo) {
+      cleaned.personalInfo = {
+        name: data.personalInfo.name || "",
+        email: data.personalInfo.email || "",
+        phone: data.personalInfo.phone || "",
+        location: data.personalInfo.location || ""
+      };
+    }
+
+    // Validate education
+    if (Array.isArray(data.education)) {
+      cleaned.education = data.education.filter((edu: any) => 
+        edu.institution && edu.degree
+      ).map((edu: any) => ({
+        institution: edu.institution,
+        degree: edu.degree,
+        graduationDate: this.validateDate(edu.graduationDate)
+      }));
+    }
+
+    // Validate projects
+    if (Array.isArray(data.projects)) {
+      cleaned.projects = data.projects.filter((project: any) => 
+        project.title
+      ).map((project: any) => ({
+        title: project.title,
+        company: project.company || "",
+        startDate: this.validateDate(project.startDate),
+        endDate: this.validateDate(project.endDate),
+        description: project.description || "",
+        skills: Array.isArray(project.skills) ? project.skills : [],
+        achievements: project.achievements || ""
+      }));
+    }
+
+    // Validate skills
+    if (Array.isArray(data.skills)) {
+      cleaned.skills = data.skills.filter((skill: any) => 
+        skill.name
+      ).map((skill: any) => ({
+        name: skill.name,
+        level: this.validateSkillLevel(skill.level),
+        category: this.validateSkillCategory(skill.category)
+      }));
+    }
+
+    // Validate languages
+    if (Array.isArray(data.languages)) {
+      cleaned.languages = data.languages.filter((lang: any) => 
+        lang.language
+      ).map((lang: any) => ({
+        language: lang.language,
+        proficiency: this.validateProficiency(lang.proficiency)
+      }));
+    }
+
+    return cleaned;
+  }
+
+  private validateDate(dateString: string): string {
+    if (!dateString) return "";
+    
+    // Try to parse the date and return in YYYY-MM-DD format
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return "";
+      return date.toISOString().split('T')[0];
+    } catch {
+      return "";
+    }
+  }
+
+  private validateSkillLevel(level: any): number {
+    const numLevel = parseInt(level);
+    if (isNaN(numLevel) || numLevel < 1 || numLevel > 5) {
+      return 3; // Default to intermediate
+    }
+    return numLevel;
+  }
+
+  private validateSkillCategory(category: string): string {
+    const validCategories = [
+      'Programming Languages',
+      'Frameworks & Libraries', 
+      'Databases',
+      'Cloud & DevOps',
+      'Tools & Software',
+      'Soft Skills',
+      'Other'
+    ];
+    
+    if (validCategories.includes(category)) {
+      return category;
+    }
+    
+    // Try to map common variations
+    const categoryLower = category?.toLowerCase() || '';
+    if (categoryLower.includes('programming') || categoryLower.includes('language')) {
+      return 'Programming Languages';
+    }
+    if (categoryLower.includes('framework') || categoryLower.includes('library')) {
+      return 'Frameworks & Libraries';
+    }
+    if (categoryLower.includes('database') || categoryLower.includes('db')) {
+      return 'Databases';
+    }
+    if (categoryLower.includes('cloud') || categoryLower.includes('devops') || categoryLower.includes('aws') || categoryLower.includes('docker')) {
+      return 'Cloud & DevOps';
+    }
+    if (categoryLower.includes('tool') || categoryLower.includes('software')) {
+      return 'Tools & Software';
+    }
+    if (categoryLower.includes('soft') || categoryLower.includes('communication') || categoryLower.includes('leadership')) {
+      return 'Soft Skills';
+    }
+    
+    return 'Other';
+  }
+
+  private validateProficiency(proficiency: string): string {
+    const validProficiencies = ['Basic', 'Conversational', 'Fluent', 'Native'];
+    
+    if (validProficiencies.includes(proficiency)) {
+      return proficiency;
+    }
+    
+    // Try to map common variations
+    const profLower = proficiency?.toLowerCase() || '';
+    if (profLower.includes('basic') || profLower.includes('beginner') || profLower.includes('elementary')) {
+      return 'Basic';
+    }
+    if (profLower.includes('conversational') || profLower.includes('intermediate')) {
+      return 'Conversational';
+    }
+    if (profLower.includes('fluent') || profLower.includes('advanced') || profLower.includes('proficient')) {
+      return 'Fluent';
+    }
+    if (profLower.includes('native') || profLower.includes('mother') || profLower.includes('first')) {
+      return 'Native';
+    }
+    
+    return 'Conversational'; // Default
   }
 
   async analyzeJobDescription(jobDescription: string, userProfile: any): Promise<any> {
@@ -283,7 +453,7 @@ Create a compelling, personalized cover letter.
       skills: [
         { name: "JavaScript", level: 5, category: "Programming Languages" },
         { name: "React", level: 4, category: "Frameworks & Libraries" },
-        { name: "Node.js", level: 4, category: "Backend" }
+        { name: "Node.js", level: 4, category: "Frameworks & Libraries" }
       ],
       languages: [
         { language: "English", proficiency: "Native" },

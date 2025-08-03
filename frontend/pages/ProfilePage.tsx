@@ -28,6 +28,11 @@ export default function ProfilePage() {
     await logout();
   };
 
+  const handleParsingComplete = () => {
+    // Switch to personal info tab after parsing is complete
+    setActiveTab('personal');
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -178,7 +183,10 @@ export default function ProfilePage() {
           </TabsList>
 
           <TabsContent value="upload" className="mt-6">
-            <ResumeUploadForm userProfile={userProfile} />
+            <ResumeUploadForm 
+              userProfile={userProfile} 
+              onParsingComplete={handleParsingComplete}
+            />
           </TabsContent>
 
           <TabsContent value="personal" className="mt-6">
