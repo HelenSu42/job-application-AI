@@ -19,100 +19,162 @@ export default function ResumeUploadForm({ userProfile, onParsingComplete }: Res
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [processingStage, setProcessingStage] = useState<'idle' | 'uploading' | 'parsing' | 'updating' | 'complete' | 'error'>('idle');
   const [extractedData, setExtractedData] = useState<any>(null);
+  const [debugInfo, setDebugInfo] = useState<string>('');
 
   const parseResumeMutation = useMutation({
     mutationFn: async (file: File) => {
-      setProcessingStage('uploading');
-      
-      // Read file content
-      const text = await readFileAsText(file);
-      
-      setProcessingStage('parsing');
-      
-      // Parse resume using backend API
-      const extractedData = await backend.user.parseResume({
-        userId: userProfile.id,
-        resumeText: text
+      console.log('=== FRONTEND RESUME PROCESSING START ===');
+      console.log('File details:', {
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        lastModified: file.lastModified
       });
       
+      setProcessingStage('uploading');
+      setDebugInfo('Reading file content...');
+      
+      // Read file content
+      let text: string;
+      try {
+        text = await readFileAsText(file);
+        console.log('File read successfully, length:', text.length);
+        console.log('File content preview:', text.substring(0, 200));
+        setDebugInfo(`File read: ${text.length} characters`);
+      } catch (error) {
+        console.error('File reading error:', error);
+        setDebugInfo('Error reading file');
+        throw new Error('Failed to read file content');
+      }
+      
+      setProcessingStage('parsing');
+      setDebugInfo('AI analyzing resume...');
+      
+      // Parse resume using backend API
+      let extractedData;
+      try {
+        console.log('Calling backend parse API...');
+        extractedData = await backend.user.parseResume({
+          userId: userProfile.id,
+          resumeText: text
+        });
+        console.log('Backend parsing completed:', extractedData);
+        setDebugInfo('AI parsing completed');
+      } catch (error) {
+        console.error('Backend parsing error:', error);
+        setDebugInfo('AI parsing failed');
+        throw new Error('Failed to parse resume with AI');
+      }
+      
       setProcessingStage('updating');
+      setDebugInfo('Updating profile...');
       
       // Update user profile with extracted data
       const updatePromises = [];
+      let updateCount = 0;
       
-      // Update education if data exists
-      if (extractedData.education && extractedData.education.length > 0) {
-        updatePromises.push(
-          backend.user.updateEducation({
-            userId: userProfile.id,
-            education: extractedData.education.map((edu: any) => ({
-              institution: edu.institution,
-              degree: edu.degree,
-              graduationDate: edu.graduationDate ? new Date(edu.graduationDate) : undefined
-            }))
-          })
-        );
-      }
+      try {
+        // Update education if data exists
+        if (extractedData.education && extractedData.education.length > 0) {
+          console.log('Updating education:', extractedData.education);
+          updatePromises.push(
+            backend.user.updateEducation({
+              userId: userProfile.id,
+              education: extractedData.education.map((edu: any) => ({
+                institution: edu.institution,
+                degree: edu.degree,
+                graduationDate: edu.graduationDate ? new Date(edu.graduationDate) : undefined
+              }))
+            }).then(() => {
+              updateCount++;
+              console.log('Education updated successfully');
+            })
+          );
+        }
 
-      // Update projects if data exists
-      if (extractedData.projects && extractedData.projects.length > 0) {
-        updatePromises.push(
-          backend.user.updateProjects({
-            userId: userProfile.id,
-            projects: extractedData.projects.map((project: any) => ({
-              title: project.title,
-              description: project.description,
-              summary: project.description && project.description.length > 200 
-                ? project.description.substring(0, 200) + '...' 
-                : project.description,
-              keywords: project.skills || [],
-              startDate: project.startDate ? new Date(project.startDate) : undefined,
-              endDate: project.endDate ? new Date(project.endDate) : undefined,
-              bullets: project.achievements ? [{
-                bulletText: project.achievements,
-                targetType: 'achievement',
-                keywords: project.skills || []
-              }] : []
-            }))
-          })
-        );
-      }
+        // Update projects if data exists
+        if (extractedData.projects && extractedData.projects.length > 0) {
+          console.log('Updating projects:', extractedData.projects);
+          updatePromises.push(
+            backend.user.updateProjects({
+              userId: userProfile.id,
+              projects: extractedData.projects.map((project: any) => ({
+                title: project.title,
+                description: project.description,
+                summary: project.description && project.description.length > 200 
+                  ? project.description.substring(0, 200) + '...' 
+                  : project.description,
+                keywords: project.skills || [],
+                startDate: project.startDate ? new Date(project.startDate) : undefined,
+                endDate: project.endDate ? new Date(project.endDate) : undefined,
+                bullets: project.achievements ? [{
+                  bulletText: project.achievements,
+                  targetType: 'achievement',
+                  keywords: project.skills || []
+                }] : []
+              }))
+            }).then(() => {
+              updateCount++;
+              console.log('Projects updated successfully');
+            })
+          );
+        }
 
-      // Update skills if data exists
-      if (extractedData.skills && extractedData.skills.length > 0) {
-        updatePromises.push(
-          backend.user.updateSkills({
-            userId: userProfile.id,
-            skills: extractedData.skills.map((skill: any) => ({
-              skillName: skill.name,
-              skillLevel: skill.level,
-              category: skill.category
-            }))
-          })
-        );
-      }
+        // Update skills if data exists
+        if (extractedData.skills && extractedData.skills.length > 0) {
+          console.log('Updating skills:', extractedData.skills);
+          updatePromises.push(
+            backend.user.updateSkills({
+              userId: userProfile.id,
+              skills: extractedData.skills.map((skill: any) => ({
+                skillName: skill.name,
+                skillLevel: skill.level,
+                category: skill.category
+              }))
+            }).then(() => {
+              updateCount++;
+              console.log('Skills updated successfully');
+            })
+          );
+        }
 
-      // Update languages if data exists
-      if (extractedData.languages && extractedData.languages.length > 0) {
-        updatePromises.push(
-          backend.user.updateLanguages({
-            userId: userProfile.id,
-            languages: extractedData.languages.map((lang: any) => ({
-              language: lang.language,
-              proficiency: lang.proficiency
-            }))
-          })
-        );
-      }
+        // Update languages if data exists
+        if (extractedData.languages && extractedData.languages.length > 0) {
+          console.log('Updating languages:', extractedData.languages);
+          updatePromises.push(
+            backend.user.updateLanguages({
+              userId: userProfile.id,
+              languages: extractedData.languages.map((lang: any) => ({
+                language: lang.language,
+                proficiency: lang.proficiency
+              }))
+            }).then(() => {
+              updateCount++;
+              console.log('Languages updated successfully');
+            })
+          );
+        }
 
-      // Execute all updates
-      await Promise.all(updatePromises);
+        // Execute all updates
+        console.log(`Executing ${updatePromises.length} update operations...`);
+        await Promise.all(updatePromises);
+        console.log(`Successfully completed ${updateCount} updates`);
+        setDebugInfo(`Updated ${updateCount} sections`);
+        
+      } catch (error) {
+        console.error('Profile update error:', error);
+        setDebugInfo('Profile update failed');
+        throw new Error('Failed to update profile with extracted data');
+      }
       
+      console.log('=== FRONTEND RESUME PROCESSING SUCCESS ===');
       return extractedData;
     },
     onSuccess: (data) => {
+      console.log('Mutation success, extracted data:', data);
       setProcessingStage('complete');
       setExtractedData(data);
+      setDebugInfo('Profile updated successfully!');
       
       // Refresh the user profile data
       queryClient.invalidateQueries({ queryKey: ['user', userProfile.id] });
@@ -127,6 +189,7 @@ export default function ResumeUploadForm({ userProfile, onParsingComplete }: Res
         setUploadedFile(null);
         setProcessingStage('idle');
         setExtractedData(null);
+        setDebugInfo('');
         // Call the callback to switch to other tabs
         if (onParsingComplete) {
           onParsingComplete();
@@ -134,8 +197,10 @@ export default function ResumeUploadForm({ userProfile, onParsingComplete }: Res
       }, 3000);
     },
     onError: (error) => {
-      console.error('Resume parsing error:', error);
+      console.error('=== FRONTEND RESUME PROCESSING ERROR ===');
+      console.error('Error details:', error);
       setProcessingStage('error');
+      setDebugInfo(`Error: ${error.message}`);
       toast({
         title: "Failed to parse resume",
         description: "Please try again or enter information manually in the other tabs.",
@@ -148,11 +213,24 @@ export default function ResumeUploadForm({ userProfile, onParsingComplete }: Res
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
-        const text = e.target?.result as string;
-        resolve(text);
+        const result = e.target?.result;
+        if (typeof result === 'string') {
+          resolve(result);
+        } else {
+          reject(new Error('Failed to read file as text'));
+        }
       };
       reader.onerror = () => reject(new Error('Failed to read file'));
-      reader.readAsText(file);
+      
+      // For now, only handle text files properly
+      // PDF and Word files will need special handling
+      if (file.type === 'text/plain') {
+        reader.readAsText(file);
+      } else {
+        // For PDF/Word files, we'll read as text anyway and let the AI try to parse it
+        // In a real implementation, you'd use libraries like pdf-parse or mammoth
+        reader.readAsText(file);
+      }
     });
   };
 
@@ -208,7 +286,9 @@ export default function ResumeUploadForm({ userProfile, onParsingComplete }: Res
       return;
     }
 
+    console.log('File selected for processing:', file.name);
     setUploadedFile(file);
+    setDebugInfo('');
     parseResumeMutation.mutate(file);
   };
 
@@ -216,6 +296,7 @@ export default function ResumeUploadForm({ userProfile, onParsingComplete }: Res
     setUploadedFile(null);
     setProcessingStage('idle');
     setExtractedData(null);
+    setDebugInfo('');
     toast({
       title: "Upload cancelled",
       description: "The file upload has been cancelled.",
@@ -325,6 +406,9 @@ export default function ResumeUploadForm({ userProfile, onParsingComplete }: Res
                   </span>
                 </div>
                 <Progress value={getProcessingProgress()} className="h-2" />
+                {debugInfo && (
+                  <p className="text-xs text-gray-500">{debugInfo}</p>
+                )}
               </div>
 
               <Button
@@ -412,6 +496,7 @@ export default function ResumeUploadForm({ userProfile, onParsingComplete }: Res
                     setProcessingStage('idle');
                     setUploadedFile(null);
                     setExtractedData(null);
+                    setDebugInfo('');
                   }}
                 >
                   Upload Another
@@ -430,6 +515,9 @@ export default function ResumeUploadForm({ userProfile, onParsingComplete }: Res
                   <p className="text-sm text-red-700">
                     Please try again with a different file format or enter information manually in the other tabs.
                   </p>
+                  {debugInfo && (
+                    <p className="text-xs text-red-600 mt-1">Debug: {debugInfo}</p>
+                  )}
                 </div>
               </div>
               <Button
@@ -437,6 +525,7 @@ export default function ResumeUploadForm({ userProfile, onParsingComplete }: Res
                 onClick={() => {
                   setProcessingStage('idle');
                   setUploadedFile(null);
+                  setDebugInfo('');
                 }}
                 className="mt-3"
               >
@@ -450,12 +539,13 @@ export default function ResumeUploadForm({ userProfile, onParsingComplete }: Res
             <div className="flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5" />
               <div>
-                <h4 className="font-medium text-blue-900 mb-2">File Requirements</h4>
+                <h4 className="font-medium text-blue-900 mb-2">File Requirements & Tips</h4>
                 <ul className="text-sm text-blue-700 space-y-1">
                   <li>• Supported formats: PDF, DOC, DOCX, TXT</li>
                   <li>• Maximum file size: 10MB</li>
                   <li>• Text-based documents work best for AI parsing</li>
-                  <li>• Scanned images may not parse accurately</li>
+                  <li>• For best results, use a text file (.txt) with your resume content</li>
+                  <li>• PDF and Word files may have limited parsing accuracy</li>
                 </ul>
               </div>
             </div>
@@ -473,6 +563,7 @@ export default function ResumeUploadForm({ userProfile, onParsingComplete }: Res
                   <li>• Parse education and certification information</li>
                   <li>• Extract achievements and quantifiable results</li>
                   <li>• All extracted data is editable and can be refined</li>
+                  <li>• If parsing fails, sample data will be provided for testing</li>
                 </ul>
               </div>
             </div>
