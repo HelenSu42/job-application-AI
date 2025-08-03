@@ -34,10 +34,10 @@ export default function ResumeUploadForm({ userProfile, onParsingComplete }: Res
       setProcessingStage('uploading');
       setDebugInfo('Reading file content...');
       
-      // Read file content
+      // Read file content based on file type
       let text: string;
       try {
-        text = await readFileAsText(file);
+        text = await readFileContent(file);
         console.log('File read successfully, length:', text.length);
         console.log('File content preview:', text.substring(0, 200));
         setDebugInfo(`File read: ${text.length} characters`);
@@ -209,7 +209,67 @@ export default function ResumeUploadForm({ userProfile, onParsingComplete }: Res
     }
   });
 
-  const readFileAsText = (file: File): Promise<string> => {
+  const loadPDFJS = async () => {
+    return new Promise((resolve, reject) => {
+      if ((window as any).pdfjsLib) {
+        resolve((window as any).pdfjsLib);
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      script.onload = () => {
+        const pdfjsLib = (window as any).pdfjsLib;
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        resolve(pdfjsLib);
+      };
+      script.onerror = () => reject(new Error('Failed to load PDF.js'));
+      document.head.appendChild(script);
+    });
+  };
+
+  const loadMammoth = async () => {
+    return new Promise((resolve, reject) => {
+      if ((window as any).mammoth) {
+        resolve((window as any).mammoth);
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js';
+      script.onload = () => {
+        resolve((window as any).mammoth);
+      };
+      script.onerror = () => reject(new Error('Failed to load Mammoth.js'));
+      document.head.appendChild(script);
+    });
+  };
+
+  const readFileContent = async (file: File): Promise<string> => {
+    const fileType = file.type;
+    const fileName = file.name.toLowerCase();
+    
+    console.log('Reading file:', fileName, 'Type:', fileType);
+    
+    if (fileType === 'text/plain' || fileName.endsWith('.txt')) {
+      return readTextFile(file);
+    } else if (fileType === 'application/pdf' || fileName.endsWith('.pdf')) {
+      return readPDFFile(file);
+    } else if (
+      fileType === 'application/msword' || 
+      fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      fileName.endsWith('.doc') || 
+      fileName.endsWith('.docx')
+    ) {
+      return readWordFile(file);
+    } else {
+      // Fallback: try to read as text
+      console.warn('Unknown file type, attempting to read as text');
+      return readTextFile(file);
+    }
+  };
+
+  const readTextFile = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -220,18 +280,56 @@ export default function ResumeUploadForm({ userProfile, onParsingComplete }: Res
           reject(new Error('Failed to read file as text'));
         }
       };
-      reader.onerror = () => reject(new Error('Failed to read file'));
-      
-      // For now, only handle text files properly
-      // PDF and Word files will need special handling
-      if (file.type === 'text/plain') {
-        reader.readAsText(file);
-      } else {
-        // For PDF/Word files, we'll read as text anyway and let the AI try to parse it
-        // In a real implementation, you'd use libraries like pdf-parse or mammoth
-        reader.readAsText(file);
-      }
+      reader.onerror = () => reject(new Error('Failed to read text file'));
+      reader.readAsText(file);
     });
+  };
+
+  const readPDFFile = async (file: File): Promise<string> => {
+    try {
+      const pdfjsLib = await loadPDFJS();
+      
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      
+      let fullText = '';
+      
+      // Extract text from each page
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items
+          .map((item: any) => item.str)
+          .join(' ');
+        fullText += pageText + '\n';
+      }
+      
+      console.log('PDF text extracted, length:', fullText.length);
+      return fullText.trim();
+    } catch (error) {
+      console.error('PDF reading error:', error);
+      throw new Error('Failed to read PDF file. Please try converting to text format.');
+    }
+  };
+
+  const readWordFile = async (file: File): Promise<string> => {
+    try {
+      const mammoth = await loadMammoth();
+      
+      const arrayBuffer = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({ arrayBuffer });
+      
+      console.log('Word document text extracted, length:', result.value.length);
+      
+      if (result.messages && result.messages.length > 0) {
+        console.warn('Word parsing messages:', result.messages);
+      }
+      
+      return result.value.trim();
+    } catch (error) {
+      console.error('Word document reading error:', error);
+      throw new Error('Failed to read Word document. Please try converting to text format.');
+    }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -268,7 +366,14 @@ export default function ResumeUploadForm({ userProfile, onParsingComplete }: Res
       'text/plain'
     ];
     
-    if (!allowedTypes.includes(file.type)) {
+    const fileName = file.name.toLowerCase();
+    const isValidType = allowedTypes.includes(file.type) || 
+                       fileName.endsWith('.pdf') || 
+                       fileName.endsWith('.doc') || 
+                       fileName.endsWith('.docx') || 
+                       fileName.endsWith('.txt');
+    
+    if (!isValidType) {
       toast({
         title: "Invalid file type",
         description: "Please upload a PDF, Word document, or text file.",
@@ -539,13 +644,13 @@ export default function ResumeUploadForm({ userProfile, onParsingComplete }: Res
             <div className="flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5" />
               <div>
-                <h4 className="font-medium text-blue-900 mb-2">File Requirements & Tips</h4>
+                <h4 className="font-medium text-blue-900 mb-2">Supported File Formats</h4>
                 <ul className="text-sm text-blue-700 space-y-1">
-                  <li>• Supported formats: PDF, DOC, DOCX, TXT</li>
+                  <li>• <strong>PDF files (.pdf)</strong> - Full text extraction support</li>
+                  <li>• <strong>Word documents (.doc, .docx)</strong> - Complete document parsing</li>
+                  <li>• <strong>Text files (.txt)</strong> - Direct text processing</li>
                   <li>• Maximum file size: 10MB</li>
-                  <li>• Text-based documents work best for AI parsing</li>
-                  <li>• For best results, use a text file (.txt) with your resume content</li>
-                  <li>• PDF and Word files may have limited parsing accuracy</li>
+                  <li>• Scanned documents may have limited accuracy</li>
                 </ul>
               </div>
             </div>
@@ -562,8 +667,8 @@ export default function ResumeUploadForm({ userProfile, onParsingComplete }: Res
                   <li>• Identify and categorize technical skills</li>
                   <li>• Parse education and certification information</li>
                   <li>• Extract achievements and quantifiable results</li>
+                  <li>• Support for multiple document formats</li>
                   <li>• All extracted data is editable and can be refined</li>
-                  <li>• If parsing fails, sample data will be provided for testing</li>
                 </ul>
               </div>
             </div>
@@ -578,7 +683,7 @@ export default function ResumeUploadForm({ userProfile, onParsingComplete }: Res
                 <p className="text-sm text-gray-700">
                   Your uploaded resume is processed securely and is never shared with third parties. 
                   The file is only used to extract information for your profile and is not stored permanently 
-                  on our servers.
+                  on our servers. All processing happens in your browser when possible.
                 </p>
               </div>
             </div>
