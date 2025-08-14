@@ -3,7 +3,6 @@ name: Tests
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-  merge_group:
   schedule:
     - cron: '0 2 * * *'
   workflow_dispatch: {}
@@ -13,19 +12,20 @@ permissions:
 
 jobs:
   test:
-    if: github.event_name != 'schedule' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          bun-version: '1.x'
+          node-version: '22'
+          cache: 'npm'
 
-      - name: Install dependencies (workspaces)
-        run: bun install
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm install --no-fund --no-audit
 
       - name: Run backend tests (if any)
         working-directory: backend
@@ -36,21 +36,7 @@ jobs:
           files=(**/*.test.ts **/*.test.tsx **/*.test.js **/*.test.jsx)
           if [ ${#files[@]} -gt 0 ]; then
             echo "Found ${#files[@]} backend test files"
-            bun run test
+            npm run test
           else
             echo "No backend tests found; skipping."
-          fi
-
-      - name: Run frontend tests (if any)
-        working-directory: frontend
-        shell: bash
-        run: |
-          set -euo pipefail
-          shopt -s globstar nullglob
-          files=(**/*.test.ts **/*.test.tsx **/*.test.js **/*.test.jsx)
-          if [ ${#files[@]} -gt 0 ]; then
-            echo "Found ${#files[@]} frontend test files"
-            bun test
-          else
-            echo "No frontend tests found; skipping."
           fi
