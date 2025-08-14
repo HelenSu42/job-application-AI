@@ -1,6 +1,7 @@
 import { api, APIError } from "encore.dev/api";
 import { userDB } from "./db";
-import crypto from "crypto";
+import { secret } from "encore.dev/config";
+import argon2 from "argon2";
 
 export interface CreateUserRequest {
   email: string;
@@ -22,9 +23,22 @@ export interface User {
   updatedAt: Date;
 }
 
-// Simple password hashing function using crypto (for demo purposes)
-function hashPassword(password: string): string {
-  return crypto.createHash('sha256').update(password).digest('hex');
+// Global pepper stored in Encore secrets (optional). If missing, fall back to empty string.
+let passwordPepper: () => string;
+try {
+  passwordPepper = secret("PasswordPepper");
+} catch {
+  passwordPepper = () => "";
+}
+
+async function hashPasswordArgon2id(password: string): Promise<string> {
+  const peppered = password + passwordPepper();
+  return argon2.hash(peppered, {
+    type: argon2.argon2id,
+    timeCost: 3,
+    memoryCost: 65536, // 64 MiB
+    parallelism: 1,
+  });
 }
 
 // Creates a new user profile.
@@ -41,9 +55,8 @@ export const create = api<CreateUserRequest, User>(
         throw APIError.alreadyExists("User with this email already exists");
       }
 
-      // Hash the password using simple crypto hash (for demo purposes)
-      // In production, use bcrypt or similar
-      const passwordHash = hashPassword(req.password);
+      // Hash the password using Argon2id with a global pepper
+      const passwordHash = await hashPasswordArgon2id(req.password);
       
       const user = await userDB.queryRow<User>`
         INSERT INTO users (email, name, password_hash, phone, location, current_salary)
