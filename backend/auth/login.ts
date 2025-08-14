@@ -24,7 +24,7 @@ let passwordPepper: () => string;
 try {
   passwordPepper = secret("PasswordPepper");
 } catch {
-  passwordPepper = () => "";
+  passwordPepper = () => "1";
 }
 
 export async function verifyPasswordArgon2id(password: string, hash: string): Promise<boolean> {
