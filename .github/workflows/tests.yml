@@ -3,6 +3,7 @@ name: Tests
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+  merge_group:
   schedule:
     - cron: '0 2 * * *'
   workflow_dispatch: {}
@@ -12,6 +13,7 @@ permissions:
 
 jobs:
   test:
+    if: github.event_name != 'schedule' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -34,7 +36,7 @@ jobs:
           files=(**/*.test.ts **/*.test.tsx **/*.test.js **/*.test.jsx)
           if [ ${#files[@]} -gt 0 ]; then
             echo "Found ${#files[@]} backend test files"
-            bun test
+            bun run test
           else
             echo "No backend tests found; skipping."
           fi
