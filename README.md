@@ -202,6 +202,23 @@ The application is built with Encore.ts, which provides built-in deployment capa
    - Configure OpenRouter API key for production
    - Set up production database
 
+## Testing
+
+### Backend Unit Tests (Vitest)
+- Use Vitest for unit-testing core logic without running the Encore runtime.
+- Tests live alongside source files as `*.test.ts` under `backend/`.
+- Run tests locally:
+
+```bash
+cd backend && bun install && bun run test
+```
+
+- CI/CD and staging reuse the same unit tests/commands. Runtime or integration tests (hitting real Encore APIs) can be added separately with `encore test` if desired.
+
+#### Pepper handling in tests
+- The code reads `PasswordPepper` via `encore.dev/config.secret` and falls back to an empty string when absent.
+- Tests mock `encore.dev/config` to simulate both cases (pepper present vs absent).
+
 ## Contributing
 
 1. Fork the repository
